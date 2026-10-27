@@ -23,7 +23,7 @@ export function processTurn(prev: GameState, orders: Orders): TurnResult {
   const missions = collectMissions(state, orders);
   resolveMovement(state, missions, events);
   resolveCombat(state, missions, rng, events);
-  resolveEconomy(state, orders, events);
+  resolveEconomy(state, orders, missions, events);
   resolveVictory(state, events);
   return { state, events };
 }
