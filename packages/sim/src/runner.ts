@@ -1,5 +1,6 @@
 import {
   buildingLevels,
+  confirmPlan,
   heroLevels,
   initState,
   ownedNodes,
@@ -8,6 +9,8 @@ import {
   scoreOf,
   totalTroops,
   validatePlan,
+  viewOf,
+  type Correction,
   type GameEvent,
   type GameState,
   type MatchResult,
@@ -37,12 +40,14 @@ export interface TurnRecord {
   plans: Plan[];
   /** 검증에서 빠진 항목(자리 순) */
   issues: PlanIssue[][];
+  /** 확정 때 제약(상시 명령 + 안전장치)이 고친 임무(자리 순) */
+  corrections: Correction[][];
   events: GameEvent[];
   metrics: SeatMetrics[];
 }
 
 export interface MatchRecord {
-  version: 2;
+  version: 3;
   config: RunConfig;
   initialState: GameState;
   turns: TurnRecord[];
@@ -71,7 +76,7 @@ export function seatMetrics(state: GameState): SeatMetrics[] {
   }));
 }
 
-/** 참모 호출 → 검증 → 처리를 매치가 끝날 때까지 반복한다. 첫 호출은 초기 상태로 한다. */
+/** 참모 호출(자리별 시야) → 검증 → 확정 → 처리를 매치가 끝날 때까지 반복한다. 첫 호출은 초기 상태로 한다. */
 export async function runMatch(config: RunConfig, staffs: readonly Staff[]): Promise<MatchRecord> {
   const initialState = initState(config);
   let state = initialState;
@@ -80,16 +85,26 @@ export async function runMatch(config: RunConfig, staffs: readonly Staff[]): Pro
     const current = state;
     const plans = await Promise.all(
       current.seats.map((s) =>
-        s.eliminatedAt === null ? staffs[s.id].plan({ state: current, seat: s.id }) : Promise.resolve(EMPTY_PLAN),
+        s.eliminatedAt === null ? staffs[s.id].plan({ view: viewOf(current, s.id) }) : Promise.resolve(EMPTY_PLAN),
       ),
     );
-    const checked = plans.map((plan, seat) => validatePlan(current, seat, plan));
+    const confirmed = plans.map((plan, seat) => {
+      const checked = validatePlan(current, seat, plan);
+      return { issues: checked.issues, ...confirmPlan(current, seat, checked.plan) };
+    });
     const { state: next, events } = processTurn(
       current,
-      checked.map((c) => c.plan),
+      confirmed.map((c) => c.plan),
     );
-    turns.push({ turn: next.turn, plans, issues: checked.map((c) => c.issues), events, metrics: seatMetrics(next) });
+    turns.push({
+      turn: next.turn,
+      plans,
+      issues: confirmed.map((c) => c.issues),
+      corrections: confirmed.map((c) => c.corrections),
+      events,
+      metrics: seatMetrics(next),
+    });
     state = next;
   }
-  return { version: 2, config, initialState, turns, result: state.ended! };
+  return { version: 3, config, initialState, turns, result: state.ended! };
 }

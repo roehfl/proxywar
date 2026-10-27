@@ -1,0 +1,27 @@
+{
+  "balanced": {
+    "tendency": { "aggression": 3, "expansion": 3, "risk": 3, "fidelity": 3, "focus": 3, "retaliation": 3 },
+    "guidelines": { "foodCaution": true, "rareFirst": false, "weakFirst": false },
+    "safeguards": { "capitalMin": 3, "noAllyAttack": false }
+  },
+  "aggressive": {
+    "tendency": { "aggression": 5, "expansion": 4, "risk": 4, "fidelity": 2, "focus": 4, "retaliation": 4 },
+    "guidelines": { "foodCaution": true, "rareFirst": false, "weakFirst": true },
+    "safeguards": { "capitalMin": 2, "noAllyAttack": false }
+  },
+  "economic": {
+    "tendency": { "aggression": 2, "expansion": 2, "risk": 2, "fidelity": 3, "focus": 1, "retaliation": 3 },
+    "guidelines": { "foodCaution": true, "rareFirst": true, "weakFirst": false },
+    "safeguards": { "capitalMin": 4, "noAllyAttack": false }
+  },
+  "defensive": {
+    "tendency": { "aggression": 1, "expansion": 2, "risk": 1, "fidelity": 4, "focus": 2, "retaliation": 3 },
+    "guidelines": { "foodCaution": true, "rareFirst": false, "weakFirst": false },
+    "safeguards": { "capitalMin": 5, "noAllyAttack": false }
+  },
+  "diplomatic": {
+    "tendency": { "aggression": 2, "expansion": 3, "risk": 2, "fidelity": 5, "focus": 3, "retaliation": 1 },
+    "guidelines": { "foodCaution": true, "rareFirst": false, "weakFirst": false },
+    "safeguards": { "capitalMin": 3, "noAllyAttack": false }
+  }
+}

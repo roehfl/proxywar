@@ -1,9 +1,9 @@
-import type { GameState, Plan, SeatId } from "../types";
+import type { Plan } from "../types";
+import type { SeatView } from "../view";
 
-/** 1a는 전체 상태를 넘긴다. 1b에서 시야 보고서로 바꾼다. */
+/** 참모는 자기 시야(보고서 데이터)만 받는다 */
 export interface StaffInput {
-  state: GameState;
-  seat: SeatId;
+  view: SeatView;
 }
 
 export interface Staff {

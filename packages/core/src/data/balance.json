@@ -45,6 +45,9 @@
     "barracksCapPerLevel": 10,
     "wallsTerrainPerLevel": 0.1
   },
+  "view": { "nodeRadius": 1, "heroRadius": 1, "scoutRadius": 2, "scoutMobility": 15, "intelRadiusPerLevel": 1 },
+  "conditions": { "ratioByValue": [0.8, 1.0, 1.2, 1.4, 1.6] },
+  "constraints": { "capitalMinPerLevel": 10, "expeditionRange": 2, "retreatRatioByLevel": [0.6, 0.8, 1.0, 1.2, 1.4] },
   "combat": { "randomSpread": 0.1, "winnerLossFactor": 0.6, "loserAttackerLossFactor": 0.6, "routedKeepPercent": 40 },
   "capitalLossPercent": 30,
   "victory": { "majorityStreak": 12 },

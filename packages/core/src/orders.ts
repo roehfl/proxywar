@@ -49,7 +49,7 @@ export function validatePlan(state: GameState, seat: SeatId, plan: Plan): Checke
       builds.push(build);
     }
   });
-  return { plan: { missions, recruits, builds }, issues };
+  return { plan: { missions, recruits, builds, memo: plan.memo }, issues };
 }
 
 function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: ReadonlySet<string>): string | null {
@@ -58,16 +58,59 @@ function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: Re
   if (hero.seat !== seat) return "not your hero";
   if (hero.status !== "active") return "hero not active";
   if (used.has(hero.id)) return "duplicate hero";
+  const reason = targetIssue(state, seat, hero.location, mission);
+  if (reason !== null || mission.when === undefined) return reason;
+  return conditionIssue(state, mission, mission.kind === "move" ? mission.to : hero.location);
+}
+
+function targetIssue(state: GameState, seat: SeatId, location: NodeId, mission: Mission): string | null {
   // 활동 중인 영웅은 늘 아군 거점에 서 있으므로 방어·운영에는 더 볼 것이 없다
   if (mission.kind === "defend" || mission.kind === "govern") return null;
   if (mission.draw !== undefined && (!Number.isInteger(mission.draw) || mission.draw < 0)) return "bad draw";
   const dest = mission.kind === "move" ? mission.to : mission.target;
   if (!Object.hasOwn(state.nodes, dest)) return "unknown node";
-  if (!neighbors(state.map, hero.location).includes(dest)) return "not adjacent";
+  if (!neighbors(state.map, location).includes(dest)) return "not adjacent";
   const owner = state.nodes[dest].owner;
   if (mission.kind === "move" && owner !== seat) return "move target not own";
   if (mission.kind === "attack" && owner === seat) return "attack target is own";
   return null;
+}
+
+/**
+ * 조건의 거점은 영웅이 조건을 판정받는 자리(at: 이동이면 도착 거점, 아니면 지금 위치)의 이웃이어야 한다.
+ * 아군 거점 피습은 at 자신도 된다. 병력 비율은 공격 임무에만 붙는다.
+ */
+function conditionIssue(state: GameState, mission: Mission, at: NodeId): string | null {
+  const { trigger, react } = mission.when!;
+  const near = (node: NodeId): boolean => Object.hasOwn(state.nodes, node) && neighbors(state.map, at).includes(node);
+  const bad = "bad condition";
+  switch (trigger.kind) {
+    case "enemyNear":
+      break;
+    case "targetEmpty":
+      if (trigger.node === undefined ? mission.kind !== "attack" : !near(trigger.node)) return bad;
+      break;
+    case "ratioBelow":
+      if (mission.kind !== "attack" || !Number.isInteger(trigger.value) || trigger.value < 1 || trigger.value > 5) {
+        return bad;
+      }
+      break;
+    case "allyAttacked":
+      if (trigger.node !== at && !near(trigger.node)) return bad;
+      break;
+    default:
+      return bad;
+  }
+  switch (react.kind) {
+    case "retreat":
+    case "defend":
+      return null;
+    case "advance":
+    case "reinforce":
+      return near(react.node) ? null : bad;
+    default:
+      return bad;
+  }
 }
 
 function recruitIssue(state: GameState, seat: SeatId, recruit: Recruit, already: number): string | null {

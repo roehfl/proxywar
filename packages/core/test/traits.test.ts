@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../src/rng";
-import { applyLoyalty, cautionRatio } from "../src/rules/traits";
+import { applyLoyalty, cautionRatio, hesitationOf } from "../src/rules/traits";
 import type { GameEvent, Mission } from "../src/types";
 import { heroOf, makeState } from "./helpers";
 
@@ -50,5 +50,18 @@ describe("cautionRatio", () => {
       return cautionRatio(hero);
     });
     expect(ratios).toEqual([0, 0, 0, 1, 1.2]);
+  });
+});
+
+describe("hesitationOf", () => {
+  it("신중 기준과 후퇴 기준 중 큰 값을 쓰고, 후퇴 기준이 더 크면 이유는 standing이다", () => {
+    const hero = heroOf(makeState(), "s0h0");
+    expect(hesitationOf(hero)).toEqual({ ratio: 0, reason: "caution" });
+    hero.standing.retreatAt = 4;
+    expect(hesitationOf(hero)).toEqual({ ratio: 1.2, reason: "standing" });
+    hero.traits.caution = 5;
+    expect(hesitationOf(hero)).toEqual({ ratio: 1.2, reason: "caution" });
+    hero.standing.retreatAt = 5;
+    expect(hesitationOf(hero)).toEqual({ ratio: 1.4, reason: "standing" });
   });
 });

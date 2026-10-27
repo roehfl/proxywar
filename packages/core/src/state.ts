@@ -1,10 +1,11 @@
 import { BALANCE } from "./data/balance";
 import { getMap } from "./map";
+import { resolveSettings } from "./settings";
 import type { MatchSetup } from "./setup";
 import type { Buildings, GameMap, GameState, Hero, NodeState, SeatState } from "./types";
 
 function noBuildings(): Buildings {
-  return { production: 0, barracks: 0, walls: 0 };
+  return { production: 0, barracks: 0, walls: 0, intel: 0 };
 }
 
 export function initState(setup: MatchSetup): GameState {
@@ -25,7 +26,15 @@ export function initState(setup: MatchSetup): GameState {
   const seats: SeatState[] = setup.seats.map((seat, i) => {
     const capital = map.capitals[i];
     nodes[capital] = { id: capital, owner: i, garrison: BALANCE.start.capitalGarrison, buildings: noBuildings() };
-    return { id: i, name: seat.name, capital, treasury: { ...BALANCE.start.treasury }, eliminatedAt: null };
+    return {
+      id: i,
+      name: seat.name,
+      capital,
+      treasury: { ...BALANCE.start.treasury },
+      eliminatedAt: null,
+      settings: resolveSettings(seat.settings),
+      memo: "",
+    };
   });
   const heroes: Hero[] = setup.seats.flatMap((seat, i) =>
     seat.heroes.map((h, j): Hero => {
@@ -40,6 +49,7 @@ export function initState(setup: MatchSetup): GameState {
         level: 1,
         exp: 0,
         traits: { loyalty: 3, caution: 3, valor: 3, ...h.traits },
+        standing: { guardCapital: false, retreatAt: null, expedition: true, ...h.standing },
         location: map.capitals[i],
         troops: 0,
         status: "active",

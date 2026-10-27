@@ -1,0 +1,26 @@
+{
+  "name": "rule6-presets",
+  "map": "ring6",
+  "turns": 120,
+  "seed": 1,
+  "seats": [
+    { "name": "Aster", "staff": { "kind": "rule" }, "settings": "balanced", "heroes": [
+      { "name": "Aster-1", "grade": 3 }, { "name": "Aster-2", "grade": 3 }, { "name": "Aster-3", "grade": 3 },
+      { "name": "Aster-4", "grade": 3 }, { "name": "Aster-5", "grade": 3 } ] },
+    { "name": "Briar", "staff": { "kind": "rule" }, "settings": "aggressive", "heroes": [
+      { "name": "Briar-1", "grade": 3, "standing": { "retreatAt": 4 } }, { "name": "Briar-2", "grade": 3 },
+      { "name": "Briar-3", "grade": 3 }, { "name": "Briar-4", "grade": 3 }, { "name": "Briar-5", "grade": 3 } ] },
+    { "name": "Cobalt", "staff": { "kind": "rule" }, "settings": "economic", "heroes": [
+      { "name": "Cobalt-1", "grade": 3 }, { "name": "Cobalt-2", "grade": 3, "standing": { "expedition": false } },
+      { "name": "Cobalt-3", "grade": 3 }, { "name": "Cobalt-4", "grade": 3 }, { "name": "Cobalt-5", "grade": 3 } ] },
+    { "name": "Dune", "staff": { "kind": "rule" }, "settings": "defensive", "heroes": [
+      { "name": "Dune-1", "grade": 3, "standing": { "guardCapital": true } }, { "name": "Dune-2", "grade": 3 },
+      { "name": "Dune-3", "grade": 3 }, { "name": "Dune-4", "grade": 3 }, { "name": "Dune-5", "grade": 3 } ] },
+    { "name": "Ember", "staff": { "kind": "rule" }, "settings": "diplomatic", "heroes": [
+      { "name": "Ember-1", "grade": 3 }, { "name": "Ember-2", "grade": 3 }, { "name": "Ember-3", "grade": 3 },
+      { "name": "Ember-4", "grade": 3 }, { "name": "Ember-5", "grade": 3 } ] },
+    { "name": "Frost", "staff": { "kind": "rule" }, "settings": { "preset": "aggressive", "tendency": { "risk": 2 } }, "heroes": [
+      { "name": "Frost-1", "grade": 3, "standing": { "guardCapital": true } }, { "name": "Frost-2", "grade": 3 },
+      { "name": "Frost-3", "grade": 3 }, { "name": "Frost-4", "grade": 3 }, { "name": "Frost-5", "grade": 3 } ] }
+  ]
+}

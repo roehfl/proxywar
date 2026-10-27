@@ -60,6 +60,113 @@ describe("validatePlan", () => {
     expect(reasons(state, missionsOnly({ kind: "govern", hero: "s0h0" }))).toEqual(["hero not active"]);
   });
 
+  it("조건부 명령은 위치(이동이면 도착 거점) 기준으로 맞으면 그대로 통과한다", () => {
+    const state = makeState();
+    state.nodes.f0.owner = 0;
+    const plan = missionsOnly(
+      {
+        kind: "move",
+        hero: "s0h0",
+        to: "f0",
+        when: { trigger: { kind: "enemyNear" }, react: { kind: "reinforce", node: "c0" } },
+      },
+      {
+        kind: "defend",
+        hero: "s0h1",
+        when: { trigger: { kind: "allyAttacked", node: "c0" }, react: { kind: "retreat" } },
+      },
+      {
+        kind: "attack",
+        hero: "s0h2",
+        target: "m0",
+        when: { trigger: { kind: "ratioBelow", value: 3 }, react: { kind: "defend" } },
+      },
+      {
+        kind: "attack",
+        hero: "s0h3",
+        target: "m0",
+        when: { trigger: { kind: "targetEmpty" }, react: { kind: "advance", node: "f0" } },
+      },
+      {
+        kind: "govern",
+        hero: "s0h4",
+        when: { trigger: { kind: "allyAttacked", node: "f0" }, react: { kind: "reinforce", node: "f0" } },
+      },
+    );
+    const checked = validatePlan(state, 0, plan);
+    expect(checked.issues).toEqual([]);
+    expect(checked.plan).toEqual(plan);
+  });
+
+  it.each<[string, Mission]>([
+    [
+      "방어에 병력 비율",
+      { kind: "defend", hero: "s0h0", when: { trigger: { kind: "ratioBelow", value: 3 }, react: { kind: "defend" } } },
+    ],
+    [
+      "병력 비율 값 0",
+      {
+        kind: "attack",
+        hero: "s0h0",
+        target: "m0",
+        when: { trigger: { kind: "ratioBelow", value: 0 }, react: { kind: "defend" } },
+      },
+    ],
+    [
+      "공격이 아닌데 대상 없는 빔",
+      { kind: "defend", hero: "s0h0", when: { trigger: { kind: "targetEmpty" }, react: { kind: "defend" } } },
+    ],
+    [
+      "이웃이 아닌 대상 빔",
+      {
+        kind: "defend",
+        hero: "s0h0",
+        when: { trigger: { kind: "targetEmpty", node: "x0" }, react: { kind: "defend" } },
+      },
+    ],
+    [
+      "이웃이 아닌 진격",
+      { kind: "defend", hero: "s0h0", when: { trigger: { kind: "enemyNear" }, react: { kind: "advance", node: "x0" } } },
+    ],
+    [
+      "없는 거점 증원",
+      {
+        kind: "defend",
+        hero: "s0h0",
+        when: { trigger: { kind: "enemyNear" }, react: { kind: "reinforce", node: "zz" } },
+      },
+    ],
+    [
+      "먼 아군 거점 피습",
+      {
+        kind: "defend",
+        hero: "s0h0",
+        when: { trigger: { kind: "allyAttacked", node: "x0" }, react: { kind: "defend" } },
+      },
+    ],
+    [
+      "이동 뒤 기준으로 이웃이 아닌 증원",
+      {
+        kind: "move",
+        hero: "s0h0",
+        to: "f0",
+        when: { trigger: { kind: "enemyNear" }, react: { kind: "reinforce", node: "m0" } },
+      },
+    ],
+    [
+      "모르는 조건",
+      {
+        kind: "defend",
+        hero: "s0h0",
+        when: { trigger: { kind: "panic" }, react: { kind: "defend" } },
+      } as unknown as Mission,
+    ],
+  ])("잘못된 조건이 붙은 임무를 뺀다: %s", (_, mission) => {
+    const state = makeState();
+    state.nodes.f0.owner = 0;
+    expect(reasons(state, missionsOnly(mission))).toEqual(["bad condition"]);
+  });
+
   it("아군 거점 공격을 뺀다", () => {
     const state = makeState();
     state.nodes.f0.owner = 0;
@@ -76,6 +183,11 @@ describe("validatePlan", () => {
     );
     expect(checked.plan.missions).toEqual([{ kind: "defend", hero: "s0h0" }]);
     expect(checked.issues).toEqual([{ item: "mission", index: 1, reason: "duplicate hero" }]);
+  });
+
+  it("참모 메모는 그대로 넘긴다", () => {
+    const plan: Plan = { missions: [], recruits: [], builds: [], memo: "note" };
+    expect(validatePlan(makeState(), 0, plan).plan.memo).toBe("note");
   });
 
   it.each<[string, Recruit, string]>([
@@ -125,6 +237,10 @@ describe("validatePlan", () => {
     ["없는 건물", { node: "c0", building: "tower" as BuildingKind }, "unknown building"],
   ])("잘못된 건설을 뺀다: %s", (_, build, reason) => {
     expect(reasons(makeState(), buildsOnly(build))).toEqual([reason]);
+  });
+
+  it("첩보망도 짓는다", () => {
+    expect(reasons(makeState(), buildsOnly({ node: "c0", building: "intel" }))).toEqual([]);
   });
 
   it("최고 레벨(3) 건물은 더 짓지 못한다", () => {

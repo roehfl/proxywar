@@ -4,16 +4,20 @@ import { initState } from "../src/state";
 import { scoreOf } from "../src/summary";
 import { heroOf, makeSetup, makeState } from "./helpers";
 
-const NO_BUILDINGS = { production: 0, barracks: 0, walls: 0 };
+const NO_BUILDINGS = { production: 0, barracks: 0, walls: 0, intel: 0 };
 
 describe("MatchSetupSchema", () => {
-  it("올바른 설정을 받아들이고 성장 계수·특성 기본값을 채운다", () => {
+  it("올바른 설정을 받아들이고 성장 계수·특성·상시 명령·세팅 기본값을 채운다", () => {
     const raw = JSON.parse(JSON.stringify(makeSetup()));
     delete raw.seats[0].heroes[0].growth;
     delete raw.seats[0].heroes[0].traits;
+    delete raw.seats[0].heroes[0].standing;
+    delete raw.seats[0].settings;
     const parsed = MatchSetupSchema.parse(raw);
     expect(parsed.seats[0].heroes[0].growth).toBe(1);
     expect(parsed.seats[0].heroes[0].traits).toEqual({});
+    expect(parsed.seats[0].heroes[0].standing).toEqual({});
+    expect(parsed.seats[0].settings).toBe("balanced");
   });
 
   it("자리가 6개가 아니면 거부한다", () => {
@@ -36,6 +40,15 @@ describe("MatchSetupSchema", () => {
     const raw = JSON.parse(JSON.stringify(makeSetup()));
     Object.assign(raw.seats[0].heroes[0], { grade: 5, traits: { loyalty: 1, caution: 5, valor: 2 } });
     expect(MatchSetupSchema.parse(raw).seats[0].heroes[0].traits).toEqual({ loyalty: 1, caution: 5, valor: 2 });
+  });
+
+  it.each<[string, object]>([
+    ["범위 밖 후퇴 기준", { retreatAt: 6 }],
+    ["모르는 상시 명령", { charge: true }],
+  ])("상시 명령 오류를 거부한다: %s", (_, standing) => {
+    const raw = JSON.parse(JSON.stringify(makeSetup()));
+    raw.seats[0].heroes[0].standing = standing;
+    expect(() => MatchSetupSchema.parse(raw)).toThrow();
   });
 });
 
@@ -100,10 +113,26 @@ describe("initState", () => {
 
   it("건물 레벨 합 × 3과 (영웅 레벨 − 1) 합 × 2가 점수에 더해지고 out 영웅은 빠진다", () => {
     const fresh = makeState();
-    fresh.nodes.c0.buildings = { production: 2, barracks: 0, walls: 1 };
+    fresh.nodes.c0.buildings = { production: 2, barracks: 0, walls: 0, intel: 1 };
     Object.assign(heroOf(fresh, "s0h0"), { level: 3 });
     Object.assign(heroOf(fresh, "s0h1"), { level: 2 });
     Object.assign(heroOf(fresh, "s0h2"), { level: 5, status: "out" });
     expect(scoreOf(fresh, 0)).toBe(16 + 9 + 6);
+  });
+
+  it("자리 세팅은 프리셋을 풀어 두고, 참모 메모는 비어 있다", () => {
+    expect(state.seats[0].settings.preset).toBe("balanced");
+    expect(state.seats[0].settings.safeguards.capitalMin).toBe(3);
+    expect(state.seats[0].memo).toBe("");
+    const setup = makeSetup();
+    setup.seats[2].settings = "economic";
+    expect(initState(setup).seats[2].settings.tendency.focus).toBe(1);
+  });
+
+  it("상시 명령은 지정하지 않으면 전담 끔·후퇴 기준 없음·원정 허용이고, 지정한 것만 덮는다", () => {
+    expect(heroOf(state, "s0h0").standing).toEqual({ guardCapital: false, retreatAt: null, expedition: true });
+    const setup = makeSetup();
+    setup.seats[0].heroes[1].standing = { guardCapital: true };
+    expect(heroOf(initState(setup), "s0h1").standing).toEqual({ guardCapital: true, retreatAt: null, expedition: true });
   });
 });

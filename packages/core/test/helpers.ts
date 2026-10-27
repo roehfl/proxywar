@@ -9,7 +9,14 @@ export function makeSetup(seed = 1): MatchSetup {
     seed,
     seats: Array.from({ length: 6 }, (_, i) => ({
       name: `Seat${i}`,
-      heroes: Array.from({ length: 5 }, (_, j) => ({ name: `H${i}${j}`, grade: 3, growth: 1, traits: {} })),
+      settings: "balanced" as const,
+      heroes: Array.from({ length: 5 }, (_, j) => ({
+        name: `H${i}${j}`,
+        grade: 3,
+        growth: 1,
+        traits: {},
+        standing: {},
+      })),
     })),
   };
 }

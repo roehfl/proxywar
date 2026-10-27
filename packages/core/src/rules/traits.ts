@@ -19,3 +19,14 @@ export function applyLoyalty(state: GameState, missions: Map<string, Mission>, r
 export function cautionRatio(hero: Hero): number {
   return BALANCE.traits.cautionRatioByCaution[hero.traits.caution - 1];
 }
+
+/**
+ * 물러남 기준: 신중 기준과 후퇴 기준(상시 명령) 중 큰 값. 0이면 물러나지 않는다.
+ * 후퇴 기준이 더 크면 이유는 standing이다.
+ */
+export function hesitationOf(hero: Hero): { ratio: number; reason: "caution" | "standing" } {
+  const caution = cautionRatio(hero);
+  const level = hero.standing.retreatAt;
+  const standing = level === null ? 0 : BALANCE.constraints.retreatRatioByLevel[level - 1];
+  return standing > caution ? { ratio: standing, reason: "standing" } : { ratio: caution, reason: "caution" };
+}

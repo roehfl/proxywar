@@ -5,7 +5,7 @@ import type { GameEvent, GameState, Hero, Mission, NodeId, NodeState, Resources,
 import { gainExp } from "./growth";
 import { rollInjury, routHero } from "./heroes";
 import { attackPower, bestHero, defensePower, defenders, heroModifier, sumTroops } from "./power";
-import { cautionRatio } from "./traits";
+import { hesitationOf } from "./traits";
 
 /** troops에서 fraction만큼(올림) 잃는 수 */
 function lose(troops: number, fraction: number): number {
@@ -151,7 +151,7 @@ function pickCapital(state: GameState, seat: SeatId): NodeId | null {
   return next?.id ?? null;
 }
 
-/** 신중 판정: 무작위 폭을 뺀 부대 공격력이 방어력 × 기준보다 낮으면 그 영웅은 물러나 제자리를 지킨다. */
+/** 신중·후퇴 기준 판정: 무작위 폭을 뺀 부대 공격력이 방어력 × 기준보다 낮으면 그 영웅은 물러나 제자리를 지킨다. */
 function withoutHesitant(
   state: GameState,
   seat: SeatId,
@@ -163,10 +163,10 @@ function withoutHesitant(
   const power = attackPower(ready);
   const def = defensePower(state, target, committed);
   return ready.filter((hero) => {
-    const ratio = cautionRatio(hero);
+    const { ratio, reason } = hesitationOf(hero);
     if (ratio === 0 || power >= def * ratio) return true;
     committed.delete(hero.id);
-    events.push({ kind: "hesitated", seat, hero: hero.id, node: target });
+    events.push({ kind: "hesitated", seat, hero: hero.id, node: target, reason });
     return false;
   });
 }

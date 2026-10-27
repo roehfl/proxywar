@@ -26,7 +26,7 @@ describe("resolveCombat", () => {
     const state = makeState();
     heroOf(state, "s0h0").troops = 100;
     const events = run(state, attack("s0h0", "f0"));
-    expect(state.nodes.f0).toEqual({ id: "f0", owner: 0, garrison: 0, buildings: { production: 0, barracks: 0, walls: 0 } });
+    expect(state.nodes.f0).toEqual({ id: "f0", owner: 0, garrison: 0, buildings: { production: 0, barracks: 0, walls: 0, intel: 0 } });
     const hero = heroOf(state, "s0h0");
     expect(hero.location).toBe("f0");
     expect(hero.troops).toBeGreaterThanOrEqual(86);
@@ -298,8 +298,28 @@ describe("resolveCombat", () => {
       // 공격력 50 × 1.12 = 56, 방어력 50 × 1.0 = 50
       const events = run(state, attack("s0h0", "f0"));
       if (hesitates) {
-        expect(events).toEqual([{ kind: "hesitated", seat: 0, hero: "s0h0", node: "f0" }]);
+        expect(events).toEqual([{ kind: "hesitated", seat: 0, hero: "s0h0", node: "f0", reason: "caution" }]);
         expect(heroOf(state, "s0h0")).toMatchObject({ location: "c0", troops: 50 });
+      } else {
+        expect(events[0]?.kind).toBe("battle");
+      }
+    }
+  });
+
+  it("후퇴 기준(상시 명령)은 신중과 같은 판정으로 물러나게 하고 이유를 standing으로 남긴다", () => {
+    for (const [retreatAt, hesitates] of [
+      [4, true],
+      [1, false],
+    ] as const) {
+      const state = makeState();
+      const hero = heroOf(state, "s0h0");
+      hero.troops = 50;
+      hero.standing.retreatAt = retreatAt;
+      state.nodes.f0.garrison = 50;
+      // 공격력 56, 방어력 50: 기준 1.2(4)면 60에 못 미쳐 물러나고, 0.6(1)이면 싸운다
+      const events = run(state, attack("s0h0", "f0"));
+      if (hesitates) {
+        expect(events).toEqual([{ kind: "hesitated", seat: 0, hero: "s0h0", node: "f0", reason: "standing" }]);
       } else {
         expect(events[0]?.kind).toBe("battle");
       }
@@ -340,10 +360,10 @@ describe("resolveCombat", () => {
     const state = makeState();
     state.nodes.f0.owner = 0;
     state.nodes.f0.garrison = 0;
-    state.nodes.f0.buildings = { production: 2, barracks: 0, walls: 1 };
+    state.nodes.f0.buildings = { production: 2, barracks: 0, walls: 1, intel: 1 };
     state.nodes.x5.owner = 5;
     Object.assign(heroOf(state, "s5h0"), { location: "x5", troops: 100 });
     run(state, attack("s5h0", "f0"));
-    expect(state.nodes.f0).toMatchObject({ owner: 5, buildings: { production: 1, barracks: 0, walls: 0 } });
+    expect(state.nodes.f0).toMatchObject({ owner: 5, buildings: { production: 1, barracks: 0, walls: 0, intel: 0 } });
   });
 });

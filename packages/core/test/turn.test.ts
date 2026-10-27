@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { processTurn } from "../src/rules/turn";
 import type { GameEvent } from "../src/types";
+import { viewOf } from "../src/view";
 import { heroOf, makeState, noOrders } from "./helpers";
 
 function battleOf(events: GameEvent[]) {
@@ -16,6 +17,17 @@ describe("processTurn", () => {
     const { state: next } = processTurn(state, noOrders());
     expect(JSON.stringify(state)).toBe(before);
     expect(next.turn).toBe(1);
+  });
+
+  it("참모 메모를 자리 상태에 남기고, 메모가 없는 자리는 비운다", () => {
+    const state = makeState();
+    state.seats[1].memo = "old";
+    const orders = noOrders();
+    orders[0].memo = "Hold f0; Seat2 is weak.";
+    const { state: next } = processTurn(state, orders);
+    expect(next.seats[0].memo).toBe("Hold f0; Seat2 is weak.");
+    expect(next.seats[1].memo).toBe("");
+    expect(viewOf(next, 0).memo).toBe("Hold f0; Seat2 is weak.");
   });
 
   it("끝난 매치는 처리하지 않는다", () => {

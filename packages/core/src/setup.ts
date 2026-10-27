@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BALANCE } from "./data/balance";
+import { LevelSchema, SettingsSetupSchema } from "./settings";
 
 const TraitValueSchema = z.number().int().min(1).max(5);
 
@@ -9,12 +10,19 @@ export const TraitsSetupSchema = z
   .partial()
   .strict();
 
+/** 지정하지 않은 상시 명령은 수도 방어 전담 끔, 후퇴 기준 없음, 원정 허용이다 */
+export const StandingSetupSchema = z
+  .object({ guardCapital: z.boolean(), retreatAt: LevelSchema.nullable(), expedition: z.boolean() })
+  .partial()
+  .strict();
+
 export const HeroSetupSchema = z
   .object({
     name: z.string().min(1),
     grade: z.number().int().min(1).max(5),
     growth: z.number().positive().default(1),
     traits: TraitsSetupSchema.default({}),
+    standing: StandingSetupSchema.default({}),
   })
   .strict()
   .refine((h) => Object.keys(h.traits).length <= BALANCE.hero.traitSlotsByGrade[h.grade - 1], {
@@ -24,6 +32,7 @@ export const HeroSetupSchema = z
 
 export const SeatSetupSchema = z.object({
   name: z.string().min(1),
+  settings: SettingsSetupSchema.default("balanced"),
   heroes: z.array(HeroSetupSchema).length(5),
 });
 
