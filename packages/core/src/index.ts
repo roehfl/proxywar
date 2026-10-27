@@ -1,10 +1,10 @@
 export type * from "./types";
 export { createRng, type Rng } from "./rng";
-export { BALANCE, recruitCap } from "./data/balance";
+export { BALANCE, BUILDING_KINDS, buildCost, recruitCap, terrainOf } from "./data/balance";
 export { bfs, compareText, getMap, neighbors, nodeType } from "./map";
-export { HeroSetupSchema, MatchSetupSchema, SeatSetupSchema, type MatchSetup } from "./setup";
+export { HeroSetupSchema, MatchSetupSchema, SeatSetupSchema, TraitsSetupSchema, type MatchSetup } from "./setup";
 export { initState } from "./state";
-export { ownedNodes, scoreOf, totalTroops } from "./summary";
+export { buildingLevels, heroLevels, ownedNodes, scoreOf, totalTroops } from "./summary";
 export { validatePlan, type CheckedPlan, type PlanIssue } from "./orders";
 export { processTurn, type TurnResult } from "./rules/turn";
 export { rulePlan, ruleStaff } from "./staff/rule-staff";

@@ -1,4 +1,6 @@
 import {
+  buildingLevels,
+  heroLevels,
   initState,
   ownedNodes,
   processTurn,
@@ -21,6 +23,10 @@ export interface SeatMetrics {
   nodes: number;
   troops: number;
   score: number;
+  /** 건물 레벨 합 */
+  buildings: number;
+  /** out이 아닌 영웅의 (레벨 − 1) 합 */
+  heroLevels: number;
   treasury: Resources;
   eliminated: boolean;
 }
@@ -36,7 +42,7 @@ export interface TurnRecord {
 }
 
 export interface MatchRecord {
-  version: 1;
+  version: 2;
   config: RunConfig;
   initialState: GameState;
   turns: TurnRecord[];
@@ -58,6 +64,8 @@ export function seatMetrics(state: GameState): SeatMetrics[] {
     nodes: ownedNodes(state, s.id).length,
     troops: totalTroops(state, s.id),
     score: scoreOf(state, s.id),
+    buildings: buildingLevels(state, s.id),
+    heroLevels: heroLevels(state, s.id),
     treasury: { ...s.treasury },
     eliminated: s.eliminatedAt !== null,
   }));
@@ -83,5 +91,5 @@ export async function runMatch(config: RunConfig, staffs: readonly Staff[]): Pro
     turns.push({ turn: next.turn, plans, issues: checked.map((c) => c.issues), events, metrics: seatMetrics(next) });
     state = next;
   }
-  return { version: 1, config, initialState, turns, result: state.ended! };
+  return { version: 2, config, initialState, turns, result: state.ended! };
 }

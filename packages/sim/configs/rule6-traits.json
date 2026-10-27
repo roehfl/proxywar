@@ -1,0 +1,41 @@
+{
+  "name": "rule6-traits",
+  "map": "ring6",
+  "turns": 120,
+  "seed": 1,
+  "seats": [
+    { "name": "Aster", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Aster-1", "grade": 1, "growth": 1.5, "traits": { "valor": 5 } },
+      { "name": "Aster-2", "grade": 1, "growth": 1.5, "traits": { "valor": 5 } },
+      { "name": "Aster-3", "grade": 1, "growth": 1.5, "traits": { "valor": 5 } },
+      { "name": "Aster-4", "grade": 1, "growth": 1.5, "traits": { "valor": 5 } },
+      { "name": "Aster-5", "grade": 1, "growth": 1.5, "traits": { "valor": 5 } } ] },
+    { "name": "Briar", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Briar-1", "grade": 5, "traits": { "loyalty": 5, "caution": 5, "valor": 1 } },
+      { "name": "Briar-2", "grade": 5, "traits": { "loyalty": 5, "caution": 5, "valor": 1 } },
+      { "name": "Briar-3", "grade": 5, "traits": { "loyalty": 5, "caution": 5, "valor": 1 } },
+      { "name": "Briar-4", "grade": 5, "traits": { "loyalty": 5, "caution": 5, "valor": 1 } },
+      { "name": "Briar-5", "grade": 5, "traits": { "loyalty": 5, "caution": 5, "valor": 1 } } ] },
+    { "name": "Cobalt", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Cobalt-1", "grade": 3, "traits": { "loyalty": 1, "valor": 4 } },
+      { "name": "Cobalt-2", "grade": 3, "traits": { "loyalty": 1, "valor": 4 } },
+      { "name": "Cobalt-3", "grade": 3, "traits": { "loyalty": 1, "valor": 4 } },
+      { "name": "Cobalt-4", "grade": 3, "traits": { "loyalty": 1, "valor": 4 } },
+      { "name": "Cobalt-5", "grade": 3, "traits": { "loyalty": 1, "valor": 4 } } ] },
+    { "name": "Dune", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Dune-1", "grade": 2, "traits": { "caution": 4 } },
+      { "name": "Dune-2", "grade": 2, "traits": { "caution": 4 } },
+      { "name": "Dune-3", "grade": 2, "traits": { "caution": 4 } },
+      { "name": "Dune-4", "grade": 2, "traits": { "caution": 4 } },
+      { "name": "Dune-5", "grade": 2, "traits": { "caution": 4 } } ] },
+    { "name": "Ember", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Ember-1", "grade": 4, "traits": { "loyalty": 2, "caution": 4 } },
+      { "name": "Ember-2", "grade": 4, "traits": { "loyalty": 2, "caution": 4 } },
+      { "name": "Ember-3", "grade": 4, "traits": { "loyalty": 2, "caution": 4 } },
+      { "name": "Ember-4", "grade": 4, "traits": { "loyalty": 2, "caution": 4 } },
+      { "name": "Ember-5", "grade": 4, "traits": { "loyalty": 2, "caution": 4 } } ] },
+    { "name": "Frost", "staff": { "kind": "rule" }, "heroes": [
+      { "name": "Frost-1", "grade": 3 }, { "name": "Frost-2", "grade": 3 }, { "name": "Frost-3", "grade": 3 },
+      { "name": "Frost-4", "grade": 3 }, { "name": "Frost-5", "grade": 3 } ] }
+  ]
+}

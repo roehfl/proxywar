@@ -5,6 +5,7 @@ import { runMatch, staffFor } from "../src/runner";
 
 const raw = JSON.parse(readFileSync(new URL("../configs/rule6.json", import.meta.url), "utf8"));
 const config = parseRunConfig(raw);
+const traitsRaw = JSON.parse(readFileSync(new URL("../configs/rule6-traits.json", import.meta.url), "utf8"));
 
 function run(c: RunConfig) {
   return runMatch(c, c.seats.map((s) => staffFor(s.staff)));
@@ -44,5 +45,14 @@ describe("runMatch", () => {
     const heroTypo = JSON.parse(JSON.stringify(raw));
     heroTypo.seats[0].heroes[0].growht = 2;
     expect(() => parseRunConfig(heroTypo)).toThrow();
+  });
+
+  it("등급·특성이 섞인 매치도 끝까지 돌고 레벨업·건설·부상·명령 불복이 일어난다", async () => {
+    const record = await run(parseRunConfig(traitsRaw));
+    expect(record.version).toBe(2);
+    expect(record.turns.every((t) => t.issues.every((list) => list.length === 0))).toBe(true);
+    const kinds = [...new Set(record.turns.flatMap((t) => t.events.map((e) => e.kind)))];
+    for (const kind of ["levelUp", "built", "heroInjured", "disobeyed"]) expect(kinds).toContain(kind);
+    expect(record.turns.at(-1)?.metrics[0]).toHaveProperty("heroLevels");
   });
 });

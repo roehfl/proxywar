@@ -25,6 +25,8 @@ describe("run 명령과 보고서", () => {
       expect(md.split("\n").filter((line) => /^\| [1-6] \| /.test(line))).toHaveLength(6);
       expect(md).toContain("## 거점 수 추이");
       expect(md).toContain("점령:");
+      expect(md).toContain("| 순위 | 자리 | 점수 | 거점 | 병력 | 건물 | 영웅 레벨 | 탈락 |");
+      expect(md).toContain("## 영웅·건설 통계");
       expect(md).toContain("## 무효 명령\n\n없음");
     } finally {
       await rm(dir, { recursive: true, force: true });
