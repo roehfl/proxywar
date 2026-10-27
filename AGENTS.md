@@ -5,7 +5,7 @@
 
 ## 지금 어디에 있나
 
-2026-10-27 게임 폴더 생성. 첫 게임 규칙 설계서 승인(`docs/superpowers/specs/2026-10-27-game-rules-design.md`). 기술 설계는 하위 프로젝트로 나눴고, 1번 시뮬레이션 코어·빠른 턴 모드 설계서 승인(`docs/superpowers/specs/2026-10-27-sim-core-design.md`). 코어 구현은 4슬라이스(1a 뼈대·1b 규칙 완성·1c LLM 참모·1d 측정)이고, 1a 구현 완료(계획 `docs/superpowers/plans/2026-10-27-sim-core-1a-skeleton.md`, 실행 중 변경 7~10은 계획 머리말). 다음은 1b 계획. 서버·연동·클라이언트·메타 설계는 아직 없음.
+2026-10-27 게임 폴더 생성. 첫 게임 규칙 설계서 승인(`docs/superpowers/specs/2026-10-27-game-rules-design.md`). 기술 설계는 하위 프로젝트로 나눴고, 1번 시뮬레이션 코어·빠른 턴 모드 설계서 승인(`docs/superpowers/specs/2026-10-27-sim-core-design.md`). 코어 구현은 4슬라이스(1a 뼈대·1b 규칙 완성·1c LLM 참모·1d 측정)이고, 1a 구현 완료(계획 `docs/superpowers/plans/2026-10-27-sim-core-1a-skeleton.md`, 실행 중 변경 7~10은 계획 머리말). 1b는 세 조각(1b-1 영웅·건물, 1b-2 시야·세팅·제약·조건부 명령, 1b-3 외교)으로 나눴고 1b-1 계획을 썼다(`docs/superpowers/plans/2026-10-27-sim-core-1b-1-heroes-buildings.md`, 제안표 검토 대기). 서버·연동·클라이언트·메타 설계는 아직 없음.
 
 ## 어디에 무엇이 있나
 
