@@ -16,4 +16,9 @@ desktop.ini
 harness/runs/
 
 # 공통 스킬·서브에이전트 정션은 .git/info/exclude에 있다(D:/game/tools/link-common.sh)
-# 엔진별 무시 규칙은 엔진 결정 후 추가
+
+# Node
+node_modules/
+
+# 시뮬레이션 실행 결과
+runs/

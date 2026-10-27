@@ -1,0 +1,24 @@
+{
+  "id": "ring6",
+  "capitals": ["c0", "c1", "c2", "c3", "c4", "c5"],
+  "nodes": [
+    { "id": "c0", "type": "capital" }, { "id": "c1", "type": "capital" }, { "id": "c2", "type": "capital" },
+    { "id": "c3", "type": "capital" }, { "id": "c4", "type": "capital" }, { "id": "c5", "type": "capital" },
+    { "id": "f0", "type": "farm" }, { "id": "f1", "type": "farm" }, { "id": "f2", "type": "farm" },
+    { "id": "f3", "type": "farm" }, { "id": "f4", "type": "farm" }, { "id": "f5", "type": "farm" },
+    { "id": "m0", "type": "mine" }, { "id": "m1", "type": "mine" }, { "id": "m2", "type": "mine" },
+    { "id": "m3", "type": "mine" }, { "id": "m4", "type": "mine" }, { "id": "m5", "type": "mine" },
+    { "id": "x0", "type": "fortress" }, { "id": "x1", "type": "fortress" }, { "id": "x2", "type": "fortress" },
+    { "id": "x3", "type": "fortress" }, { "id": "x4", "type": "fortress" }, { "id": "x5", "type": "fortress" },
+    { "id": "i0", "type": "rare" }, { "id": "i1", "type": "city" }, { "id": "i2", "type": "rare" },
+    { "id": "i3", "type": "city" }, { "id": "i4", "type": "rare" }, { "id": "i5", "type": "city" }
+  ],
+  "edges": [
+    ["c0", "f0"], ["c0", "m0"], ["c1", "f1"], ["c1", "m1"], ["c2", "f2"], ["c2", "m2"],
+    ["c3", "f3"], ["c3", "m3"], ["c4", "f4"], ["c4", "m4"], ["c5", "f5"], ["c5", "m5"],
+    ["m0", "x0"], ["x0", "f1"], ["m1", "x1"], ["x1", "f2"], ["m2", "x2"], ["x2", "f3"],
+    ["m3", "x3"], ["x3", "f4"], ["m4", "x4"], ["x4", "f5"], ["m5", "x5"], ["x5", "f0"],
+    ["x0", "i0"], ["x1", "i1"], ["x2", "i2"], ["x3", "i3"], ["x4", "i4"], ["x5", "i5"],
+    ["i0", "i1"], ["i1", "i2"], ["i2", "i3"], ["i3", "i4"], ["i4", "i5"], ["i5", "i0"]
+  ]
+}

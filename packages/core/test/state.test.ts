@@ -1,0 +1,61 @@
+import { describe, expect, it } from "vitest";
+import { MatchSetupSchema } from "../src/setup";
+import { scoreOf } from "../src/summary";
+import { heroOf, makeSetup, makeState } from "./helpers";
+
+describe("MatchSetupSchema", () => {
+  it("올바른 설정을 받아들이고 성장 계수 기본값을 채운다", () => {
+    const raw = JSON.parse(JSON.stringify(makeSetup()));
+    delete raw.seats[0].heroes[0].growth;
+    const parsed = MatchSetupSchema.parse(raw);
+    expect(parsed.seats[0].heroes[0].growth).toBe(1);
+  });
+
+  it("자리가 6개가 아니면 거부한다", () => {
+    const raw = makeSetup();
+    expect(() => MatchSetupSchema.parse({ ...raw, seats: raw.seats.slice(0, 5) })).toThrow();
+  });
+});
+
+describe("initState", () => {
+  const state = makeState();
+
+  it("자리마다 시작 수도를 갖는다", () => {
+    for (let i = 0; i < 6; i++) {
+      expect(state.seats[i].capital).toBe(`c${i}`);
+      expect(state.nodes[`c${i}`]).toEqual({ id: `c${i}`, owner: i, garrison: 60 });
+    }
+  });
+
+  it("수도가 아닌 거점은 타입별 중립 수비대를 갖는다", () => {
+    expect(state.nodes.x0).toEqual({ id: "x0", owner: null, garrison: 60 });
+    expect(state.nodes.f0.garrison).toBe(20);
+    expect(state.nodes.i0.garrison).toBe(40);
+    expect(state.nodes.i1.garrison).toBe(40);
+  });
+
+  it("영웅 30명이 수도에서 병력 0으로 시작하고 능력치는 등급 기준값이다", () => {
+    expect(state.heroes).toHaveLength(30);
+    const hero = heroOf(state, "s2h4");
+    expect(hero).toMatchObject({ seat: 2, name: "H24", location: "c2", troops: 0, status: "active" });
+    expect(hero.stats).toEqual({ might: 14, command: 14, admin: 14, mobility: 14 });
+  });
+
+  it("자원은 시작값이고 자리마다 따로다", () => {
+    const fresh = makeState();
+    expect(fresh.seats[0].treasury).toEqual({ gold: 50, food: 50, material: 20, rare: 0 });
+    fresh.seats[0].treasury.gold = 0;
+    expect(fresh.seats[1].treasury.gold).toBe(50);
+  });
+
+  it("턴 0에서 끝나지 않은 상태로 시작한다", () => {
+    expect(state.turn).toBe(0);
+    expect(state.maxTurns).toBe(120);
+    expect(state.majority).toEqual({ seat: null, streak: 0 });
+    expect(state.ended).toBeNull();
+  });
+
+  it("시작 점수는 거점 1개 10점 + 병력 60명 6점이다", () => {
+    expect(scoreOf(state, 0)).toBe(16);
+  });
+});

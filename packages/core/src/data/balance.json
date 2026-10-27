@@ -1,0 +1,27 @@
+{
+  "production": {
+    "capital": { "gold": 6, "food": 5, "material": 3, "rare": 0 },
+    "city": { "gold": 4, "food": 2, "material": 1, "rare": 0 },
+    "fortress": { "gold": 1, "food": 1, "material": 1, "rare": 0 },
+    "farm": { "gold": 1, "food": 6, "material": 0, "rare": 0 },
+    "mine": { "gold": 1, "food": 0, "material": 6, "rare": 0 },
+    "rare": { "gold": 1, "food": 0, "material": 0, "rare": 2 }
+  },
+  "neutralGarrison": { "capital": 0, "city": 40, "fortress": 60, "farm": 20, "mine": 20, "rare": 40 },
+  "terrain": { "capital": 1.3, "city": 1.1, "fortress": 1.5, "farm": 1.0, "mine": 1.0, "rare": 1.0 },
+  "recruit": {
+    "unit": 10,
+    "costPerUnit": { "gold": 5, "food": 5 },
+    "capPerTurn": { "capital": 30, "city": 20 }
+  },
+  "upkeep": { "soldiersPerFood": 20, "desertionPercent": 10 },
+  "start": {
+    "treasury": { "gold": 50, "food": 50, "material": 20, "rare": 0 },
+    "capitalGarrison": 60
+  },
+  "hero": { "baseStatByGrade": [10, 12, 14, 16, 18], "mightBonusPerPoint": 0.03, "troopsPerCommand": 10 },
+  "combat": { "randomSpread": 0.1, "winnerLossFactor": 0.6, "loserAttackerLossFactor": 0.6, "routedKeepPercent": 40 },
+  "capitalLossPercent": 30,
+  "victory": { "majorityStreak": 12 },
+  "score": { "perNode": 10, "troopsPerPoint": 10 }
+}

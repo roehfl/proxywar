@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>proxywar 1a 코어 뼈대 구현</title>
+  <style>
+    body { margin: 0; font-family: Arial, "Malgun Gothic", sans-serif; color: #17212f; background: #f5f7fb; line-height: 1.55; }
+    header { background: #18324a; color: #fff; padding: 34px 42px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 56px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+    h2 { margin: 34px 0 14px; font-size: 21px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e8edf4; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #edf3f8; color: #26384c; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    code { font-family: Consolas, monospace; background: #eef3f8; padding: 2px 5px; border-radius: 4px; }
+    pre { background: #101827; color: #eef6ff; padding: 14px; border-radius: 8px; overflow: auto; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .done { background: #d9f3e5; color: #146137; }
+    .info { background: #dbeafe; color: #1d4ed8; }
+    .pending { background: #fff0c2; color: #765300; }
+    .out { background: #f6d9dc; color: #842029; }
+    .warn { background: #ffe8b3; color: #7a4b00; }
+    .muted { background: #e8edf2; color: #536171; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .summary { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+    .card { background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+    .list { margin: 0; padding-left: 18px; }
+    .list li { margin: 5px 0; }
+    .small { font-size: 13px; color: #536171; }
+    .transition { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .transition .state { background: #edf3f8; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+    .transition .arrow { color: #536171; font-size: 16px; }
+    .transition .action { font-size: 12px; color: #1d4ed8; }
+    @media (max-width: 880px) {
+      header { padding: 26px 22px; }
+      main { padding: 20px 14px 38px; }
+      .grid, .two, .summary { grid-template-columns: 1fr; }
+      th, td { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>proxywar (가제)</div>
+  <h1>1a 코어 뼈대 구현 — 시뮬레이션 코어 첫 슬라이스</h1>
+  <span class="badge done">구현 완료</span>
+  <span class="badge muted">작성일: 2026-10-27</span>
+</header>
+
+<main>
+
+  <section class="summary">
+    <div class="card">
+      <h2>요약</h2>
+      <p>규칙 참모 6명이 맵 <code>ring6</code>에서 매치를 결정적으로 끝까지 돌고, <code>npm run sim -- run &lt;설정&gt;</code>이 <code>match.json</code>과 <code>report.md</code>를 남기는 코어 뼈대를 만들었습니다.</p>
+      <p>순수 TypeScript 코어(<code>packages/core</code>)가 상태·명령 검증·턴 처리(이동 → 전투 → 생산·모집·유지비 → 승리·탈락)와 규칙 참모를 맡고, <code>packages/sim</code>이 실행 설정·매치 실행기·보고서·CLI를 맡습니다.</p>
+      <p>실행 중 리뷰로 전투 버그 1건과 규칙 참모의 정체·왕복 문제를 고쳤고, 모집 상한은 사용자 결정으로 "현재 수도 기준"이 됐습니다. 시드 1·2·3 매치는 74~84턴에 서로 다른 승자로 조기 승리로 끝납니다.</p>
+    </div>
+    <div class="card">
+      <h2>현황</h2>
+      <p><span class="badge done">Task 1~13 완료</span></p>
+      <p><span class="badge done">테스트 83개 통과</span></p>
+      <p><span class="badge done">타입 검사 통과</span></p>
+      <p><span class="badge done">CLI 실측 완료</span></p>
+      <p><span class="badge warn">커밋 안 함(사용자 미승인)</span></p>
+      <p><span class="badge pending">1b 계획 대기</span></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>범위</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>구현 범위</h3>
+        <p><span class="badge done">완료</span></p>
+        <ul class="list">
+          <li>npm workspaces, TypeScript 7.0.2, zod 4.6.7, vitest 5.0.5, tsx 4.23.15</li>
+          <li>상태 타입, 시드 난수, 맵 <code>ring6</code>, 수치 표 시작값</li>
+          <li>명령 검증(<code>validatePlan</code>)</li>
+          <li>이동·전투·점령·후퇴·수도 이전·생산·모집·유지비·탈영</li>
+          <li>탈락, 과반 연속, 조기 승리·마지막 생존·턴 제한, 점수·순위</li>
+          <li>규칙 참모(단독 공격 → 합동 공격 → 보충·전선 이동·방어, 모집)</li>
+          <li>실행 설정 검증, 매치 실행기, Markdown 보고서, <code>run</code> CLI</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>미구현</h3>
+        <p><span class="badge pending">대기</span></p>
+        <ul class="list">
+          <li>1b: 시야, 건물, 세팅 5종, 메모, 조건부 명령, 제약·확정 순서, 외교, 영웅 성장·부상·포로, 프리셋</li>
+          <li>1c: LLM 참모, <code>claude -p</code> 어댑터, 실패 대체, <code>replay</code></li>
+          <li>1d: 실험 파일, <code>batch</code>, 가설 요약 표</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>범위 외</h3>
+        <p><span class="badge out">제외</span></p>
+        <ul class="list">
+          <li>서버·계정·클라이언트·메타</li>
+          <li>사람 조작(직접 수정·수동 재계획·탐험)</li>
+          <li>화면</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>한 턴의 처리</h2>
+    <div class="card">
+      <div class="transition">
+        <span class="state">참모 계획(6자리)</span><span class="arrow">→</span>
+        <span class="action">validatePlan</span><span class="arrow">→</span>
+        <span class="state">이동·병력 꺼내기</span><span class="arrow">→</span>
+        <span class="state">전투(시드 순서)</span><span class="arrow">→</span>
+        <span class="state">생산·모집·유지비</span><span class="arrow">→</span>
+        <span class="state">탈락·과반·종료</span>
+      </div>
+      <p class="small"><code>processTurn(state, orders)</code>는 상태를 JSON 복제한 뒤 단계 함수가 복제본을 고쳐 새 상태와 이벤트를 돌려줍니다. 난수는 <code>(matchSeed, turn)</code>에서 만들고, 같은 설정이면 기록 전체가 바이트 단위로 같습니다(테스트로 고정).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>실측 결과 (<code>rule6.json</code>)</h2>
+    <table>
+      <tr><th>시드</th><th>종료</th><th>승자</th><th>턴</th><th>비고</th></tr>
+      <tr><td>1</td><td><span class="badge done">조기 승리</span></td><td>Aster</td><td>82</td><td>자리 간 점령 319건, 수도 함락 12건, 탈락 1자리. 승자 거점 22/30</td></tr>
+      <tr><td>2</td><td><span class="badge done">조기 승리</span></td><td>Ember</td><td>84</td><td></td></tr>
+      <tr><td>3</td><td><span class="badge done">조기 승리</span></td><td>Frost</td><td>74</td><td></td></tr>
+    </table>
+    <p class="small">변경 9 전에는 T2 이후 118턴 동안 정체(모든 자리 거점 3)였습니다. 결과물은 <code>runs/1a-check/</code>(git 제외)에 있습니다.</p>
+  </section>
+
+  <section>
+    <h2>계획 대비 변경</h2>
+    <table>
+      <tr><th>#</th><th>변경</th><th>이유</th></tr>
+      <tr><td>1</td><td><code>processTurn</code>은 난수를 인자로 받지 않음</td><td>상태의 시드·턴에서 만들어 호출자 실수를 없앰</td></tr>
+      <tr><td>2</td><td>탈락 자리는 생존 자리 아래, 늦게 탈락한 쪽이 위</td><td>탈락 시점 점수가 모두 0</td></tr>
+      <tr><td>3</td><td>비율 수치를 백분율·나눗셈 정수 연산으로</td><td>부동소수 오차 방지</td></tr>
+      <tr><td>4</td><td>1a 영웅 능력치는 등급 기준값</td><td>레벨 1 값이 설계서에 없음</td></tr>
+      <tr><td>5</td><td>병력 이동은 임무의 <code>draw</code></td><td>"영웅이 부대를 이끈다"의 구체화</td></tr>
+      <tr><td>6</td><td>참모 종류는 <code>rule</code> 하나</td><td><code>llm</code>은 1c</td></tr>
+      <tr><td>7</td><td><span class="badge info">사용자 결정</span> 모집 상한은 현재 수도 기준</td><td>수도가 농장으로 옮겨지면 다시는 모집 못 하는 문제. 같은 리뷰로 <code>Object.hasOwn</code>, 맵 깊은 복사, 난수 고정값 테스트</td></tr>
+      <tr><td>8</td><td><span class="badge warn">버그 수정</span> 점령한 영웅이 같은 턴 그 거점을 지킴</td><td>뒤에 정산되는 부대가 병력 1로 빼앗을 수 있었음. <code>defenderLoss</code>도 후퇴 생존분을 뺌</td></tr>
+      <tr><td>9</td><td>규칙 참모에 합동 공격</td><td>영웅이 흩어져 요새를 못 깨 매치가 정체. 설계서 5.5 "평범한 플레이어" 미달</td></tr>
+      <tr><td>10</td><td>보충 우선(왕복 제거), 합동 공격 병력 0 제외, CLI·설정 검증 강화</td><td>코드 리뷰. 왕복 181건 → 0건(시드 1~8)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>테스트 결과</h2>
+    <div class="two">
+      <div class="card">
+        <h3>자동 검증</h3>
+        <ul class="list">
+          <li><code>npm test</code>: <span class="badge done">12 files, 83 passed</span> (core 77, sim 6)</li>
+          <li><code>npm run typecheck</code>: <span class="badge done">통과</span> (core는 <code>types: []</code>로 Node API 차단)</li>
+          <li>전투 회귀 테스트는 수정을 빼면 실패함을 확인</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>리뷰</h3>
+        <ul class="list">
+          <li>Task 묶음(1~5, 6~9, 10~12)마다 명세 검토 <span class="badge done">일치</span> → 품질 검토 → 수정 → 재검토 <span class="badge done">승인</span></li>
+          <li>전체 구현 최종 리뷰는 묶음별 리뷰와 재검토로 대신함</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>변경 파일</h2>
+    <table>
+      <tr><th>위치</th><th>파일</th></tr>
+      <tr><td>루트</td><td><code>package.json</code>, <code>package-lock.json</code>, <code>tsconfig.base.json</code>, <code>vitest.config.ts</code>, <code>.gitignore</code>, <code>AGENTS.md</code></td></tr>
+      <tr><td><code>packages/core/src</code></td><td><code>types</code>, <code>rng</code>, <code>map</code>, <code>setup</code>, <code>state</code>, <code>summary</code>, <code>orders</code>, <code>data/{balance.json,balance.ts,maps/ring6.json}</code>, <code>rules/{power,movement,combat,economy,victory,turn}</code>, <code>staff/{types,rule-staff}</code>, <code>index</code></td></tr>
+      <tr><td><code>packages/core/test</code></td><td><code>helpers</code> + 테스트 10개</td></tr>
+      <tr><td><code>packages/sim</code></td><td><code>configs/rule6.json</code>, <code>src/{config,runner,report,run-command,cli}</code>, 테스트 2개</td></tr>
+      <tr><td>문서</td><td>1a 계획(변경 7~10 기록), <code>brainstorm-log.md</code>(모집 규칙·슬라이스 분할)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>미결 사항</h2>
+    <table>
+      <tr><th>#</th><th>질문</th><th>현재 입장</th></tr>
+      <tr><td>1</td><td>참모에게 상태 사본을 넘길까?</td><td>LLM 어댑터가 붙는 1c에서 처리.</td></tr>
+      <tr><td>2</td><td>여러 약한 영웅이 같은 보충 거점으로 몰리는 문제, 닿을 수 없는 최대 보충지만 고르는 문제는?</td><td>규칙 참모를 세팅 기반으로 바꾸는 1b에서 다룸.</td></tr>
+      <tr><td>3</td><td>영웅이 많은 부대가 손실 올림으로 더 잃는 문제는?</td><td>밸런스 실측(1d) 때 판단.</td></tr>
+      <tr><td>4</td><td>커밋은?</td><td>사용자 승인이 없어 모든 변경이 작업 트리에 미커밋 상태.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>다음 Phase 권장</h2>
+    <div class="card">
+      <p><span class="badge info">다음</span> <strong>1b 규칙 완성 계획</strong></p>
+      <p>시야(참모 입력을 전체 상태에서 시야 보고서로), 건물, 세팅 5종과 그에 따라 움직이는 규칙 참모, 참모 메모, 조건부 명령, 제약·확정 순서, 외교 6종, 영웅 성장·아웃라이어·부상·포로, 세팅 프리셋을 넣습니다.</p>
+      <p class="small">향후: 1c LLM 참모(<code>claude -p</code>, 구독 한도 확인 포함) → 1d 측정(<code>batch</code>, 가설 A·B·D·E 요약).</p>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
