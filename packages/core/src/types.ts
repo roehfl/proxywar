@@ -138,6 +138,7 @@ export type GameEvent =
   | { kind: "captured"; node: NodeId; from: SeatId | null; to: SeatId }
   | { kind: "heroRouted"; seat: SeatId; hero: string; to: NodeId; troops: number }
   | { kind: "capitalMoved"; seat: SeatId; from: NodeId; to: NodeId | null; lost: Resources }
+  | { kind: "capitalRestored"; seat: SeatId; to: NodeId }
   | { kind: "income"; seat: SeatId; gain: Resources }
   | { kind: "recruited"; seat: SeatId; node: NodeId; amount: number }
   | { kind: "recruitSkipped"; seat: SeatId; node: NodeId; reason: "notOwned" | "unaffordable" }

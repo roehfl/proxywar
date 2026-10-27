@@ -61,13 +61,14 @@
   <div class="card">
     <p>영웅이 매치 안에서 경험치로 성장하고, 특성(충성·신중·용맹)대로 움직이며, 패하면 부상하거나 포로가 됩니다. 거점에는 생산·병영·성벽을 지을 수 있고, 점수에 거점 발전도와 영웅 성장이 들어갑니다.</p>
     <p>세부 규칙은 계획 머리말의 제안표를 사용자가 확정한 그대로 구현했습니다. 리뷰 세 번에서 Critical·Important 지적은 없었습니다.</p>
-    <p>규칙 참모 6명 매치는 두 설정 모두 120턴까지 완주했고 정체는 없었습니다. 다만 1a보다 매치가 길어져 턴 제한으로 끝나는 시드가 생겼습니다.</p>
+    <p>리뷰가 찾은 규칙 빈칸 2건은 사용자가 정했습니다. 출격한 영웅은 출발 거점이 먼저 함락돼도 자기 공격을 치릅니다. 운영 보정은 지금 동작을 유지합니다.</p>
+    <p>규칙 참모 6명 매치는 정체 없이 완주합니다. 다만 1a보다 매치가 길어져, 시드 8개 중 3개가 턴 제한으로 끝납니다.</p>
   </div>
   <div class="card">
     <h3>현황</h3>
     <p><span class="badge done">Task 1~12 완료</span></p>
-    <p><span class="badge done">테스트 134개 통과</span> <span class="badge done">타입 검사 통과</span></p>
-    <p><span class="badge pending">규칙 확인 2건 대기</span></p>
+    <p><span class="badge done">테스트 138개 통과</span> <span class="badge done">타입 검사 통과</span></p>
+    <p><span class="badge done">규칙 확인 2건 확정</span></p>
     <p><span class="badge muted">push·main 머지 안 함</span></p>
   </div>
 </div>
@@ -111,7 +112,7 @@
   <div class="transition">
     <span class="state">충성 판정</span><span class="arrow">→</span>
     <span class="state">이동</span><span class="arrow">→</span>
-    <span class="state">전투</span><span class="action">신중 후퇴·경험치·부상·포로·건물 손상</span><span class="arrow">→</span>
+    <span class="state">전투</span><span class="action">신중 후퇴·경험치·부상·포로·건물 손상, 끝에 남의 거점에 선 영웅 후퇴</span><span class="arrow">→</span>
     <span class="state">경제</span><span class="action">생산(운영·생산 건물) → 건설 → 모집 → 유지비 → 운영 경험치</span><span class="arrow">→</span>
     <span class="state">레벨업</span><span class="arrow">→</span>
     <span class="state">회복</span><span class="arrow">→</span>
@@ -128,6 +129,7 @@
   <tr><td>레벨업</td><td>능력치 4종이 각각 <code>기준 상승폭(1성 0.5 ~ 5성 0.9) × 성장 계수 × 0.5~1.5</code>만큼 오릅니다.</td></tr>
   <tr><td>특성</td><td>기본값 3, 슬롯은 1·1·2·2·3개입니다. 충성 1·2는 20%·10% 확률로 불복합니다. 신중 4·5는 공격력이 방어력 × 1.0·1.2 미만이면 물러납니다. 용맹은 1점당 공격 배수 +0.03, 부상 확률 +10%p입니다.</td></tr>
   <tr><td>부상·포로</td><td>공격에서 졌거나 거점을 잃고 후퇴하면 부상 확률 30%이고, 부상하면 3턴 빠집니다. 후퇴할 곳이 없으면 점령한 자리의 포로가 되고, 잡은 자리가 탈락하면 석방됩니다.</td></tr>
+  <tr><td>전투 순서 (실행 중 결정)</td><td>아직 자기 공격을 치르지 않은 영웅은 출발 거점이 먼저 함락돼도 그 자리에서 후퇴하지 않고 자기 공격을 치릅니다. 진 영웅과, 신중으로 물러나 남의 거점에 서 있게 된 영웅은 전투 단계 끝에 판정을 한 번 받습니다. 남의 거점이면 후퇴(물러날 곳이 없으면 포로), 아군 거점이면 부상 판정입니다. 마지막 거점인 수도가 먼저 함락됐어도 출격한 영웅이 이겨 자리가 살아남으면, 새 수도를 다시 정합니다(<code>capitalRestored</code>).</td></tr>
   <tr><td>건물</td><td>레벨 0~3, 한 거점에 턴당 하나입니다. 비용은 금 <code>20L</code>·자재 <code>30L</code>이고 효과는 다음 턴부터입니다. 생산 건물은 레벨당 +50%, 병영은 모집 상한 +10(농장 등에서도 모집 가능), 성벽은 지형 배수 +0.1입니다. 점령되면 종류마다 한 레벨씩 내려갑니다.</td></tr>
   <tr><td>점수</td><td><code>거점 × 10 + 병력 ÷ 10 + 건물 레벨 합 × 3 + (영웅 레벨 − 1) 합 × 2</code>입니다. out 영웅은 세지 않습니다.</td></tr>
 </table>
@@ -135,9 +137,12 @@
 <h2>실측 결과 (시드 1)</h2>
 <table>
   <tr><th>설정</th><th>종료</th><th>승자</th><th>턴</th><th>탈락</th><th>자리 간 점령</th></tr>
-  <tr><td><code>rule6</code> (전원 3성, 기본 특성)</td><td><span class="badge warn">턴 제한</span></td><td>Ember</td><td>120</td><td>Cobalt (T91)</td><td>415건, 10턴 넘게 끊긴 구간 없음</td></tr>
-  <tr><td><code>rule6-traits</code> (등급·특성 혼합)</td><td><span class="badge warn">턴 제한</span></td><td>Ember</td><td>120</td><td>Dune (T88)</td><td>352건, 10턴 넘게 끊긴 구간 없음</td></tr>
+  <tr><td><code>rule6</code> (전원 3성, 기본 특성)</td><td><span class="badge warn">턴 제한</span></td><td>Frost</td><td>120</td><td colspan="2" class="small">전투 순서 결정 반영 뒤 실행</td></tr>
+  <tr><td><code>rule6-traits</code> (등급·특성 혼합)</td><td><span class="badge done">조기 승리</span></td><td>Ember</td><td>63</td><td colspan="2" class="small">전투 순서 결정 반영 뒤 실행</td></tr>
+  <tr><td class="small">반영 전 <code>rule6</code></td><td>턴 제한</td><td>Ember</td><td>120</td><td>Cobalt (T91)</td><td>415건, 10턴 넘게 끊긴 구간 없음</td></tr>
+  <tr><td class="small">반영 전 <code>rule6-traits</code></td><td>턴 제한</td><td>Ember</td><td>120</td><td>Dune (T88)</td><td>352건, 10턴 넘게 끊긴 구간 없음</td></tr>
 </table>
+<p class="small">아래 특성 통계는 반영 전 실행에서 셌습니다. 반영 뒤 <code>rule6</code> 시드 1~8은 턴 제한 3개(시드 1·3·8), 조기 승리 5개(T72~103)이고, 무효 명령은 0건입니다.</p>
 <div class="two">
   <div class="card">
     <h3>특성이 실제로 작동하는가 (<code>rule6-traits</code>)</h3>
@@ -151,7 +156,7 @@
   <div class="card">
     <h3>1a 대비: 매치가 길어짐</h3>
     <ul class="list">
-      <li><code>rule6</code> 시드 1~8: 1a는 8개 모두 T65~99에 조기 승리했습니다. 지금은 3개가 턴 제한이고, 5개는 T74~116에 조기 승리했습니다.</li>
+      <li><code>rule6</code> 시드 1~8: 1a는 8개 모두 T65~99에 조기 승리했습니다. 지금은 3개가 턴 제한입니다. 전투 순서 결정을 반영하기 전에도 3개였습니다.</li>
       <li>건설·운영·부상·성장을 하나씩 꺼 봐도 턴 제한 비율은 조금만 줄었습니다. 한 기능 때문이 아니라 여러 변경이 쌓인 결과입니다.</li>
       <li>수치 조정은 1d 범위라 하지 않았습니다.</li>
     </ul>
@@ -165,7 +170,8 @@
   <tr><td>2</td><td>1a의 "후퇴할 곳이 없으면 <code>out</code>"을 포로로 바꿨습니다.</td><td>포로 규칙 도입. <code>out</code>은 탈락한 자리의 영웅에게만 씁니다.</td></tr>
   <tr><td>3</td><td>규칙 참모가 내부 거점에서 약한 영웅에게 운영을 맡깁니다.</td><td>1a에서는 빈손으로 전선에 나갔습니다.</td></tr>
   <tr><td>4</td><td>매치 기록 <code>version</code>을 2로 올렸습니다.</td><td>상태·지표·이벤트 모양이 바뀌었습니다.</td></tr>
-  <tr><td>5</td><td>(실행 중) 리뷰 지적으로 테스트 5개를 보강했습니다(소스 변경 없음).</td><td>기존 단언이 주장한 동작을 실제로 검증하지 못했습니다. 보강한 테스트 중 두 개는 소스를 일부러 틀리게 바꿔 실패하는 것까지 확인했습니다.</td></tr>
+  <tr><td>5</td><td>(실행 중) 출격한 영웅은 출발 거점이 먼저 함락돼도 자기 공격을 치르고, 남의 거점에 남으면 전투 단계 끝에 후퇴 판정을 받습니다.</td><td>사용자 결정(1B). 처리 순서 운으로 출격 영웅이 싸우지도 못하고 포로가 되던 문제를 없앴습니다. 재리뷰에서 나온 두 가지(부상 판정이 두 번 될 수 있음, 수도가 <code>null</code>로 남음)도 고쳤습니다. 테스트 4개를 더했습니다.</td></tr>
+  <tr><td>6</td><td>(실행 중) 리뷰 지적으로 테스트 5개를 보강했습니다(소스 변경 없음).</td><td>기존 단언이 주장한 동작을 실제로 검증하지 못했습니다. 보강한 테스트 중 두 개는 소스를 일부러 틀리게 바꿔 실패하는 것까지 확인했습니다.</td></tr>
 </table>
 
 <h2>리뷰 결과</h2>
@@ -178,7 +184,7 @@
 <p class="small">같은 설정으로 두 번 돌린 <code>match.json</code>은 바이트까지 같았습니다. 규칙 참모 매치 9개에서 무효 명령과 <code>unaffordable</code> 건너뜀은 0건이었습니다.</p>
 
 <h2>테스트 결과</h2>
-<pre>npm test           → Test Files  15 passed (15) · Tests  134 passed (134)   (core 127, sim 7)
+<pre>npm test           → Test Files  15 passed (15) · Tests  138 passed (138)   (core 131, sim 7)
 npm run typecheck  → 오류 없음
 기준선(1a)         → Test Files  12 passed · Tests  83 passed</pre>
 
@@ -205,13 +211,13 @@ npm run typecheck  → 오류 없음
     </ul>
   </div>
 </div>
-<p class="small">브랜치 커밋 15개(계획 문서 <code>fc850d5</code>부터 이 보고서까지), 코드·테스트 약 +1,250줄.</p>
+<p class="small">브랜치 커밋 16개(계획 문서 <code>fc850d5</code>부터 전투 순서 결정 반영까지), 코드·테스트 약 +1,400줄.</p>
 
 <h2>미결 사항</h2>
 <table>
   <tr><th>#</th><th>질문</th><th>현재 입장</th></tr>
-  <tr><td>1</td><td>공격하러 나간 영웅의 출발 거점이 같은 전투 단계에서 먼저 함락되면, 그 영웅이 싸우기 전에 후퇴·부상·포로 판정을 받는 게 맞는가?</td><td><span class="badge pending">사용자 확인 대기</span> 지금 동작을 유지합니다. 1a의 <code>out</code>과 같은 순서 의존입니다.</td></tr>
-  <tr><td>2</td><td>운영하던 거점을 잃고 후퇴한 영웅이 피난한 거점에서 운영 보정·경험치를 받는 게 맞는가?</td><td><span class="badge pending">사용자 확인 대기</span> 제안표 문구("경제 단계 시점에 서 있는 아군 거점")대로 동작합니다.</td></tr>
+  <tr><td>1</td><td>공격하러 나간 영웅의 출발 거점이 같은 전투 단계에서 먼저 함락되면, 그 영웅이 싸우기 전에 후퇴·부상·포로 판정을 받는 게 맞는가?</td><td><span class="badge done">확정(1B)</span> 아니요. 자기 공격을 먼저 치르고, 남의 거점에 남으면 전투 단계 끝에 후퇴 판정을 받습니다.</td></tr>
+  <tr><td>2</td><td>운영하던 거점을 잃고 후퇴한 영웅이 피난한 거점에서 운영 보정·경험치를 받는 게 맞는가?</td><td><span class="badge done">확정(2A)</span> 예. 제안표 문구("경제 단계 시점에 서 있는 아군 거점")대로입니다.</td></tr>
   <tr><td>3</td><td>매치가 1a보다 길어진 것을 어떻게 다룰 것인가?</td><td><span class="badge muted">1d</span> 측정 슬라이스에서 수치로 조정합니다.</td></tr>
 </table>
 

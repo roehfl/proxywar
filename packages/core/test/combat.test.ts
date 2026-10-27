@@ -14,6 +14,13 @@ function run(state: ReturnType<typeof makeState>, ...missions: [string, Mission]
   return events;
 }
 
+/** 남의 거점에 서 있는 활동·부상 영웅(전투 단계 뒤에는 없어야 한다) */
+function stranded(state: ReturnType<typeof makeState>): string[] {
+  return state.heroes
+    .filter((h) => (h.status === "active" || h.status === "injured") && state.nodes[h.location].owner !== h.seat)
+    .map((h) => h.id);
+}
+
 describe("resolveCombat", () => {
   it("약한 중립 거점을 점령하고 영웅이 들어가며 손실은 힘의 비율을 따른다", () => {
     const state = makeState();
@@ -118,6 +125,95 @@ describe("resolveCombat", () => {
     expect(state.nodes.x5.owner).toBe(5);
     expect(heroOf(state, "s0h0")).toMatchObject({ status: "captured", captor: 5, troops: 0 });
     expect(events).toContainEqual({ kind: "heroCaptured", seat: 0, hero: "s0h0", by: 5 });
+  });
+
+  it("출발 거점이 먼저 함락돼도 아직 공격하지 않은 영웅은 자기 공격을 치른다(정산 순서와 무관)", () => {
+    let originFirst = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const state = makeState();
+      Object.assign(state.nodes.x5, { owner: 0, garrison: 0 });
+      Object.assign(heroOf(state, "s0h0"), { location: "x5", troops: 100 });
+      state.nodes.m5.owner = 5;
+      Object.assign(heroOf(state, "s5h0"), { location: "m5", troops: 200 });
+      const events: GameEvent[] = [];
+      resolveCombat(state, new Map([attack("s0h0", "f0"), attack("s5h0", "x5")]), createRng(seed, "test"), events);
+      const battles = events.filter((e) => e.kind === "battle").map((e) => (e.kind === "battle" ? e.node : ""));
+      if (battles[0] === "x5") originFirst += 1;
+      expect(state.nodes.x5.owner).toBe(5);
+      expect(state.nodes.f0.owner).toBe(0);
+      expect(heroOf(state, "s0h0")).toMatchObject({ location: "f0", status: "active" });
+      expect(stranded(state)).toEqual([]);
+    }
+    expect(originFirst).toBeGreaterThan(0);
+    expect(originFirst).toBeLessThan(12);
+  });
+
+  it("출발 거점을 잃은 뒤 공격에서 지거나 신중으로 물러난 영웅은 전투 단계 끝에 후퇴 판정을 받는다", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const state = makeState();
+      Object.assign(state.nodes.x5, { owner: 0, garrison: 0 });
+      // s0h0은 질 공격, s0h1은 신중 5로 물러날 공격(56 < 50 × 1.2). x5 둘레에는 아군 거점이 없다
+      Object.assign(heroOf(state, "s0h0"), { location: "x5", troops: 10 });
+      Object.assign(heroOf(state, "s0h1"), { location: "x5", troops: 50 });
+      heroOf(state, "s0h1").traits.caution = 5;
+      state.nodes.f0.garrison = 100;
+      state.nodes.i5.garrison = 50;
+      state.nodes.m5.owner = 5;
+      Object.assign(heroOf(state, "s5h0"), { location: "m5", troops: 300 });
+      const events: GameEvent[] = [];
+      resolveCombat(
+        state,
+        new Map([attack("s0h0", "f0"), attack("s0h1", "i5"), attack("s5h0", "x5")]),
+        createRng(seed, "test"),
+        events,
+      );
+      expect(state.nodes.x5.owner).toBe(5);
+      expect(heroOf(state, "s0h0")).toMatchObject({ status: "captured", captor: 5 });
+      expect(heroOf(state, "s0h1")).toMatchObject({ status: "captured", captor: 5 });
+      expect(stranded(state)).toEqual([]);
+    }
+  });
+
+  it("진 공격 영웅의 부상 판정은 출발 거점 함락 순서와 관계없이 한 번이고, 피난처에 같은 병력을 남긴다", () => {
+    const orders = new Set<string>();
+    for (let seed = 1; seed <= 24; seed++) {
+      const state = makeState();
+      Object.assign(state.nodes.x5, { owner: 0, garrison: 0 });
+      Object.assign(state.nodes.i5, { owner: 0, garrison: 0 });
+      Object.assign(heroOf(state, "s0h0"), { location: "x5", troops: 10 });
+      state.nodes.f0.garrison = 100;
+      state.nodes.m5.owner = 5;
+      Object.assign(heroOf(state, "s5h0"), { location: "m5", troops: 300 });
+      const events: GameEvent[] = [];
+      resolveCombat(state, new Map([attack("s0h0", "f0"), attack("s5h0", "x5")]), createRng(seed, "test"), events);
+      const battles = events.filter((e) => e.kind === "battle").map((e) => (e.kind === "battle" ? e.node : ""));
+      orders.add(battles.join(">"));
+      const hero = heroOf(state, "s0h0");
+      // 10명 중 6명을 잃고 남은 4명의 40%(1명)를 데리고 i5로 물러난다. 부상했으면 그 1명은 i5 수비대에 있다
+      expect(hero.location).toBe("i5");
+      expect(hero.troops + state.nodes.i5.garrison).toBe(1);
+      expect(events.filter((e) => e.kind === "heroInjured" && e.hero === "s0h0").length).toBeLessThanOrEqual(1);
+    }
+    expect([...orders].sort()).toEqual(["f0>x5", "x5>f0"]);
+  });
+
+  it("마지막 거점인 수도가 먼저 함락돼도 출격한 영웅이 이기면 자리는 살아남고 새 거점이 수도가 된다", () => {
+    let capitalFirst = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const state = makeState();
+      Object.assign(heroOf(state, "s0h0"), { troops: 100 });
+      state.nodes.m0.owner = 5;
+      state.nodes.m0.garrison = 0;
+      Object.assign(heroOf(state, "s5h0"), { location: "m0", troops: 500 });
+      const events: GameEvent[] = [];
+      resolveCombat(state, new Map([attack("s0h0", "f0"), attack("s5h0", "c0")]), createRng(seed, "test"), events);
+      if (events.some((e) => e.kind === "capitalRestored")) capitalFirst += 1;
+      expect(state.nodes.c0.owner).toBe(5);
+      expect(state.nodes.f0.owner).toBe(0);
+      expect(state.seats[0].capital).toBe("f0");
+    }
+    expect(capitalFirst).toBeGreaterThan(0);
+    expect(capitalFirst).toBeLessThan(12);
   });
 
   it("수도가 함락되면 자원 30%를 잃고 수비대가 가장 많은 아군 거점으로 수도를 옮긴다", () => {

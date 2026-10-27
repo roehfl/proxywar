@@ -89,6 +89,8 @@ function describe(e: GameEvent, name: (seat: number | null) => string, heroName:
       return `점령: ${e.node} (${name(e.from)} → ${name(e.to)})`;
     case "capitalMoved":
       return `수도 함락: ${name(e.seat)} ${e.from} → ${e.to ?? "없음"}`;
+    case "capitalRestored":
+      return `수도 재지정: ${name(e.seat)} → ${e.to}`;
     case "eliminated":
       return `탈락: ${name(e.seat)}`;
     case "heroCaptured":
