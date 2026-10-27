@@ -75,6 +75,22 @@ describe("resolveEconomy", () => {
     expect(heroOf(state, "s0h0").exp).toBe(5);
   });
 
+  it("한 거점에 운영 영웅이 둘이면 내정이 가장 높은 쪽만 반영하고 둘 다 경험치를 얻는다", () => {
+    const state = makeState();
+    heroOf(state, "s0h1").stats.admin = 20;
+    const missions = new Map<string, Mission>([
+      ["s0h0", { kind: "govern", hero: "s0h0" }],
+      ["s0h1", { kind: "govern", hero: "s0h1" }],
+    ]);
+    const events: GameEvent[] = [];
+    resolveEconomy(state, noOrders(), missions, events);
+    // 수도 생산 6/5/3 × (100 + 20 × 3)% 내림 = 9/8/4, 유지비 3
+    expect(events).toContainEqual({ kind: "income", seat: 0, gain: { gold: 9, food: 8, material: 4, rare: 0 } });
+    expect(state.seats[0].treasury).toEqual({ gold: 59, food: 55, material: 24, rare: 0 });
+    expect(heroOf(state, "s0h0").exp).toBe(5);
+    expect(heroOf(state, "s0h1").exp).toBe(5);
+  });
+
   it("생산 건물은 레벨당 그 거점 생산을 50% 늘린다", () => {
     const state = makeState();
     state.nodes.c0.buildings.production = 1;
