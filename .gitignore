@@ -1,0 +1,19 @@
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 편집기
+.vscode/
+.idea/
+*.swp
+
+# Claude Code 로컬
+.claude/settings.local.json
+.claude/worktrees/
+
+# 하네스 실행 근거 (라이브러리로 승격된 것만 남긴다)
+harness/runs/
+
+# 공통 스킬·서브에이전트 정션은 .git/info/exclude에 있다(D:/game/tools/link-common.sh)
+# 엔진별 무시 규칙은 엔진 결정 후 추가

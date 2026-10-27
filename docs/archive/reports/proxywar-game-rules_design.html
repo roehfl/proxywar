@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>proxywar 게임 규칙 설계</title>
+  <style>
+    body { margin: 0; font-family: Arial, "Malgun Gothic", sans-serif; color: #17212f; background: #f5f7fb; line-height: 1.55; }
+    header { background: #18324a; color: #fff; padding: 34px 42px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 56px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+    h2 { margin: 34px 0 14px; font-size: 21px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e8edf4; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #edf3f8; color: #26384c; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    code { font-family: Consolas, monospace; background: #eef3f8; padding: 2px 5px; border-radius: 4px; }
+    pre { background: #101827; color: #eef6ff; padding: 14px; border-radius: 8px; overflow: auto; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .done { background: #d9f3e5; color: #146137; }
+    .info { background: #dbeafe; color: #1d4ed8; }
+    .pending { background: #fff0c2; color: #765300; }
+    .out { background: #f6d9dc; color: #842029; }
+    .warn { background: #ffe8b3; color: #7a4b00; }
+    .muted { background: #e8edf2; color: #536171; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .summary { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+    .card { background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+    .list { margin: 0; padding-left: 18px; }
+    .list li { margin: 5px 0; }
+    .small { font-size: 13px; color: #536171; }
+    .transition { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .transition .state { background: #edf3f8; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+    .transition .arrow { color: #536171; font-size: 16px; }
+    .transition .action { font-size: 12px; color: #1d4ed8; }
+    @media (max-width: 880px) {
+      header { padding: 26px 22px; }
+      main { padding: 20px 14px 38px; }
+      .grid, .two, .summary { grid-template-columns: 1fr; }
+      th, td { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>proxywar (가제)</div>
+  <h1>게임 규칙 설계 — 첫 설계</h1>
+  <span class="badge done">설계 승인</span>
+  <span class="badge muted">작성일: 2026-10-27</span>
+</header>
+
+<main>
+
+  <section class="summary">
+    <div class="card">
+      <h2>요약</h2>
+      <p>마스터 6명이 1시간 턴으로 5일(120턴) 동안 겨루는 서버 턴제 전쟁 시뮬레이션의 게임 규칙을 정했습니다.</p>
+      <p>마스터는 프롬프트 대신 세팅값(boolean·1~5)과 영웅 구성으로 참모 AI를 조율합니다. 참모는 턴마다 한 번 호출되어 영웅 5명의 임무·거점 운영·외교를 정하고, 메모와 전쟁 일지를 남깁니다.</p>
+      <p>영웅은 1~5성 등급이 BM의 축이고, 유대 승급과 숨은 아웃라이어가 pay-to-win을 막습니다. 모델 격차는 보고서 길이 예산 계수로 조정하고, AI 운용에 닿는 것은 팔지 않습니다.</p>
+      <p>다음 단계로는 서버·계정 없이 규칙 엔진, 빠른 턴 모드, 봇만으로 가설 A~E를 확인하는 시뮬레이션 프로토타입을 권장합니다.</p>
+    </div>
+    <div class="card">
+      <h2>현황</h2>
+      <p><span class="badge done">게임 규칙 설계서 승인</span></p>
+      <p><span class="badge done">결정 기록 갱신</span></p>
+      <p><span class="badge done">HTML 리포트 추가됨</span></p>
+      <p><span class="badge info">문서만 변경</span></p>
+      <p><span class="badge pending">기술 설계 대기</span></p>
+      <p><span class="badge pending">코드 없음</span></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>범위</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>설계 범위</h3>
+        <p><span class="badge done">완료</span></p>
+        <ul class="list">
+          <li>경기 구조, 승리·탈락, 턴 흐름, 호출량</li>
+          <li>맵(노드 그래프)·자원 4종·군사·시야</li>
+          <li>참모 AI와 세팅 5종, 메모, 조건부 명령, 전쟁 일지</li>
+          <li>정형 외교 6종과 약속 기록</li>
+          <li>영웅 명부·등급·유대·아웃라이어</li>
+          <li>직접 플레이(탐험·훈련), 모델 밸런스, BM 원칙</li>
+          <li>프로토타입 가설 A~E</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>미구현</h3>
+        <p><span class="badge pending">대기</span></p>
+        <ul class="list">
+          <li>기술 설계(서버, 계정·구독·API 키 연동, 클라이언트)</li>
+          <li>수치 표(전투 공식, 생산량, 경험치 곡선, 점수 공식, 등급별 상승폭)</li>
+          <li>프롬프트 템플릿과 출력 형식 명세</li>
+          <li>맵 데이터, 세팅 항목 최종 목록</li>
+          <li>코드 전부</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>범위 외</h3>
+        <p><span class="badge out">제외</span></p>
+        <ul class="list">
+          <li>미니게임(밸런스를 잡은 뒤 결정)</li>
+          <li>자동 긴급 호출(조건부 명령으로 대체)</li>
+          <li>자연어 외교</li>
+          <li>영웅마다 AI를 두는 구조</li>
+          <li>기만 행동(나중 후보)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>한 턴의 흐름</h2>
+    <div class="card">
+      <div class="transition">
+        <span class="state">정각 처리</span><span class="arrow">→</span>
+        <span class="action">정기 호출 1회</span><span class="arrow">→</span>
+        <span class="state">계획 공개</span><span class="arrow">→</span>
+        <span class="action">검토 약 55분</span><span class="arrow">→</span>
+        <span class="state">5분 전 마감</span><span class="arrow">→</span>
+        <span class="state">다음 정각 처리</span>
+      </div>
+      <div class="transition">
+        <span class="state">계획 공개</span><span class="arrow">→</span>
+        <span class="action">세팅 변경 + 수동 재계획(하루 3회)</span><span class="arrow">→</span>
+        <span class="state">새 계획</span>
+      </div>
+      <p class="small">정각 처리 순서: 이동 → 조건 판정·반응 → 전투 → 생산·성장 → 외교 정산. 처리 중에는 AI를 호출하지 않습니다. 실패한 호출은 재시도 없이 규칙 참모로 대체하므로 마스터당 매치 최대 135회로 고정됩니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>참모 AI와 세팅</h2>
+    <table>
+      <tr><th>세팅</th><th>값</th><th>예시</th><th>작동</th></tr>
+      <tr><td>성향</td><td>1~5</td><td>공격성, 확장 욕구, 위험 감수, 동맹 신의</td><td>프롬프트 방향 문구</td></tr>
+      <tr><td>지침</td><td>boolean</td><td>희귀 자원지 우선, 약한 상대 우선</td><td><span class="badge info">알림만</span></td></tr>
+      <tr><td>안전장치</td><td>boolean·1~5</td><td>수도 최소 수비, 동맹 공격 금지</td><td><span class="badge warn">게임이 강제</span></td></tr>
+      <tr><td>정보 구성</td><td>on/off + 상세도</td><td>적 이동 기록, 외교 이력, 탐험 보고, 메모 길이</td><td>보고서 길이 예산 안에서 선택</td></tr>
+      <tr><td>영웅별 상시 명령</td><td>boolean·1~5</td><td>수도 방어 전담, 후퇴 기준, 원정 허용</td><td><span class="badge warn">게임이 강제</span></td></tr>
+    </table>
+    <div class="two">
+      <div class="card">
+        <h3>AI 지휘관 장치</h3>
+        <ul class="list">
+          <li><strong>참모 메모</strong>: 다음 호출의 자신에게 남기는 턴 간 기억</li>
+          <li><strong>조건부 명령</strong>: 임무 하나에 조건 하나, 추가 호출 없이 턴 처리 중 반응</li>
+          <li><strong>전쟁 일지</strong>: 판단 근거. 상대 것은 매치 종료 뒤 공개</li>
+          <li><strong>강제 규칙 최소화</strong>: 안전장치는 소수만</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>명령 확정 순서</h3>
+        <ol class="list">
+          <li>마스터 직접 수정</li>
+          <li>제약(상시 명령 + 안전장치, 함께 적용)</li>
+          <li>참모 계획</li>
+        </ol>
+        <p class="small">잘못된 항목은 그 항목만 규칙 참모가 대체하고, 형식이 통째로 깨지면 계획 전체를 대체합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>영웅</h2>
+    <div class="two">
+      <div class="card">
+        <h3>계정에 남는 것 / 매치마다 초기화</h3>
+        <table>
+          <tr><th>항목</th><th>지속</th></tr>
+          <tr><td>보유 영웅, 고유 특성, 등급, 유대, 숨은 성장 계수</td><td><span class="badge done">계정 유지</span></td></tr>
+          <tr><td>레벨, 능력치 성장</td><td><span class="badge muted">매치마다 1레벨</span></td></tr>
+          <tr><td>부상·포로</td><td><span class="badge muted">매치 안에서만</span></td></tr>
+        </table>
+        <p class="small">매치마다 명부에서 5명이 출전합니다. 능력치는 무력·통솔·내정·기동 4종입니다.</p>
+      </div>
+      <div class="card">
+        <h3>등급과 격차 완화</h3>
+        <ul class="list">
+          <li><strong>1~5성</strong>(별 개수). 레벨당 상승폭은 획득 등급 기준으로 평생 유지</li>
+          <li><strong>유대 승급</strong>: 출전 기록과 훈련(주간 상한)으로 5성까지. 돈으로 살 수 없음</li>
+          <li><strong>아웃라이어</strong>: 등급보다 높은 숨은 성장 계수. 낮은 등급일수록 확률이 높고 첫 승급 때 공개</li>
+          <li><strong>6~7성</strong>: 특수 조건에서만 승급(조건 미정)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>첫 프로토타입이 증명할 가설</h2>
+    <table>
+      <tr><th>가설</th><th>확인 방법</th></tr>
+      <tr><td>A. 세팅 차이가 결과 차이로 드러난다</td><td>같은 모델, 다른 세팅 프리셋끼리 대전</td></tr>
+      <tr><td>B. 모델 격차를 보고서 예산 계수로 좁힐 수 있다</td><td>강·약 모델 대전, 계수를 바꾸며 승률 변화 측정</td></tr>
+      <tr><td>C. 메모와 전쟁 일지가 읽을 만한 이야기를 만든다</td><td>매치 후 사용자가 일지를 읽고 판정</td></tr>
+      <tr><td>D. 등급이 순위를 결정하지 않는다</td><td>출전 영웅 평균 별 수와 순위의 상관</td></tr>
+      <tr><td>E. LLM 참모가 규칙 참모보다 확실히 낫다</td><td>기준선 대비 승률</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>미결 사항</h2>
+    <table>
+      <tr><th>#</th><th>질문</th><th>현재 입장</th></tr>
+      <tr><td>1</td><td>미니게임을 도입할까?</td><td>전체 밸런스를 잡은 뒤 결정.</td></tr>
+      <tr><td>2</td><td>6~7성 승급 조건은 무엇인가?</td><td>나중에 결정.</td></tr>
+      <tr><td>3</td><td>BM으로 무엇을 어떻게 팔까?</td><td>등급제가 축. 판매 방식은 미정.</td></tr>
+      <tr><td>4</td><td>같은 매치 안 등급 격차를 얼마나 허용할까?</td><td>가설 D 지표로 결정.</td></tr>
+      <tr><td>5</td><td>자동 긴급 호출이 다시 필요할까?</td><td>조건부 명령으로 부족한지 프로토타입에서 확인.</td></tr>
+      <tr><td>6</td><td>구독 연동은 어떤 경로로 할까?</td><td>OpenAI "Sign in with ChatGPT"의 파트너 조건은 미확인. API 키·로컬 모델 범위도 기술 설계에서.</td></tr>
+      <tr><td>7</td><td>봇용 저가 모델의 비용은 얼마인가?</td><td>미확인. 프로토타입에서 호출당 토큰을 실측해 계산.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>결정 로그</h2>
+    <table>
+      <tr><th>#</th><th>결정</th><th>근거</th></tr>
+      <tr><td>1</td><td>참모 하나만 AI, 영웅은 규칙 기반 실행자</td><td>호출량이 영웅 수에 비례하지 않아 구독 한도 안에 들고, 영웅 간 협조가 쉽다.</td></tr>
+      <tr><td>2</td><td>소규모 매치(6명, 1시간 × 5일)</td><td>AI 운용 실력 차이가 결과에 잘 드러나고, 밸런스 조정 주기가 빠르다.</td></tr>
+      <tr><td>3</td><td>거점 과반 12턴 유지로 조기 승리 + 점수 순위</td><td>경기가 반드시 끝나 호출량이 예측되고, 저지를 위한 외교가 살아난다.</td></tr>
+      <tr><td>4</td><td>턴 시작에 계획, 마감까지 검토, 수동 재계획 하루 3회</td><td>세팅을 바꿔 보고 결과를 같은 턴에 확인하는 튜닝 고리가 핵심 실력이다.</td></tr>
+      <tr><td>5</td><td>자동 긴급 호출 기각</td><td>상시 명령과 겹치고, 턴 처리 중 호출 대기로 서버 처리가 복잡해진다.</td></tr>
+      <tr><td>6</td><td>정보 구성만 길이 예산으로 제약</td><td>무엇을 보여 줄지 고르는 것이 모델과 맞물린 AI 운용 실력이 되고, 호출당 비용도 예측된다.</td></tr>
+      <tr><td>7</td><td>보고서 예산은 매치 안 정보 건물로만 증가</td><td>과금·등급이 AI 운용 축에 들어가지 않게 한다.</td></tr>
+      <tr><td>8</td><td>참모 메모·조건부 명령·전쟁 일지 도입</td><td>기억·의도·보이는 판단이 있어야 실제 AI 지휘관끼리의 전쟁으로 느껴진다.</td></tr>
+      <tr><td>9</td><td>정형 외교만, 배신은 벌칙 없이 약속 기록 공개</td><td>프롬프트 인젝션이 구조적으로 막히고, 신뢰 판단을 AI와 사람에게 맡긴다.</td></tr>
+      <tr><td>10</td><td>등급제(1~5성) + 유대 승급 + 숨은 아웃라이어</td><td>BM의 축을 두되 시간과 운으로 격차를 좁혀 pay-to-win을 완화한다.</td></tr>
+      <tr><td>11</td><td>빈자리는 저가 모델 봇, 최소 1명이면 매치 시작</td><td>초기 유저가 적을 때와 AI와 겨루는 플레이를 함께 해결한다. 봇 비용은 운영자가 부담한다.</td></tr>
+      <tr><td>12</td><td>모델별 보고서 예산 계수 + 매치 기록으로 밸런스</td><td>규칙은 그대로 두고 맥락만 조절하므로 공정성을 설명하기 쉽다.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>다음 Phase 권장</h2>
+    <div class="card">
+      <p><span class="badge info">다음</span> <strong>S1 시뮬레이션 프로토타입 설계</strong></p>
+      <p>서버·계정·클라이언트 없이 규칙 엔진, 빠른 턴 모드, 규칙 참모, LLM 참모(봇)만으로 6인 매치를 통째로 돌려 가설 A·B·D·E를 측정하고, 전쟁 일지로 가설 C를 판정합니다. 설계에서는 개발 언어와 LLM 호출 방식, 프롬프트 템플릿과 출력 형식, 첫 맵 1장과 수치 초안을 정합니다.</p>
+      <p class="small">순서 근거: 가설 A·E가 깨지면 게임 자체가 성립하지 않으므로, 비용이 큰 서버·연동 설계보다 먼저 확인합니다. 프로토타입에서 실측한 호출당 토큰은 구독 연동 가능성과 봇 비용 판단의 근거가 됩니다.</p>
+      <p class="small">향후: 기술 설계(서버, 계정·구독·API 키 연동, 클라이언트), 웹 클라이언트·관전 화면, 영웅 명부·BM.</p>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
