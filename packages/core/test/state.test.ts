@@ -97,4 +97,13 @@ describe("initState", () => {
   it("시작 점수는 거점 1개 10점 + 병력 60명 6점이다", () => {
     expect(scoreOf(state, 0)).toBe(16);
   });
+
+  it("건물 레벨 합 × 3과 (영웅 레벨 − 1) 합 × 2가 점수에 더해지고 out 영웅은 빠진다", () => {
+    const fresh = makeState();
+    fresh.nodes.c0.buildings = { production: 2, barracks: 0, walls: 1 };
+    Object.assign(heroOf(fresh, "s0h0"), { level: 3 });
+    Object.assign(heroOf(fresh, "s0h1"), { level: 2 });
+    Object.assign(heroOf(fresh, "s0h2"), { level: 5, status: "out" });
+    expect(scoreOf(fresh, 0)).toBe(16 + 9 + 6);
+  });
 });
