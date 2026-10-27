@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>proxywar 시뮬레이션 코어 설계</title>
+  <style>
+    body { margin: 0; font-family: Arial, "Malgun Gothic", sans-serif; color: #17212f; background: #f5f7fb; line-height: 1.55; }
+    header { background: #18324a; color: #fff; padding: 34px 42px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 56px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+    h2 { margin: 34px 0 14px; font-size: 21px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e8edf4; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #edf3f8; color: #26384c; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    code { font-family: Consolas, monospace; background: #eef3f8; padding: 2px 5px; border-radius: 4px; }
+    pre { background: #101827; color: #eef6ff; padding: 14px; border-radius: 8px; overflow: auto; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .done { background: #d9f3e5; color: #146137; }
+    .info { background: #dbeafe; color: #1d4ed8; }
+    .pending { background: #fff0c2; color: #765300; }
+    .out { background: #f6d9dc; color: #842029; }
+    .warn { background: #ffe8b3; color: #7a4b00; }
+    .muted { background: #e8edf2; color: #536171; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .summary { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+    .card { background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+    .list { margin: 0; padding-left: 18px; }
+    .list li { margin: 5px 0; }
+    .small { font-size: 13px; color: #536171; }
+    .transition { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .transition .state { background: #edf3f8; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+    .transition .arrow { color: #536171; font-size: 16px; }
+    .transition .action { font-size: 12px; color: #1d4ed8; }
+    @media (max-width: 880px) {
+      header { padding: 26px 22px; }
+      main { padding: 20px 14px 38px; }
+      .grid, .two, .summary { grid-template-columns: 1fr; }
+      th, td { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>proxywar (가제)</div>
+  <h1>시뮬레이션 코어·빠른 턴 모드 설계 — 첫 기술 설계</h1>
+  <span class="badge done">설계 승인</span>
+  <span class="badge muted">작성일: 2026-10-27</span>
+</header>
+
+<main>
+
+  <section class="summary">
+    <div class="card">
+      <h2>요약</h2>
+      <p>서버·계정·클라이언트 없이 로컬에서 도는 시뮬레이션 코어와 빠른 턴 모드를 설계했습니다. 게임 규칙 설계서의 가설 A~E를 측정할 도구를 만드는 데까지가 범위입니다.</p>
+      <p>매치 규칙 전체를 순수 TypeScript 코어로 만들고, 턴 처리는 <code>processTurn</code> 순수 함수, 참모는 비동기 인터페이스로 둡니다. 시드와 LLM 원문 기록으로 매치를 재현하고, 나중에 실서버와 다중 플랫폼 클라이언트가 같은 코어를 재사용합니다.</p>
+      <p>LLM 참모는 개발자 본인 구독의 <code>claude -p</code> 헤드리스로 부르고, 호출량은 실행마다 자리 구성과 턴 수로 조절합니다. 결과는 매치 기록·Markdown 보고서·배치 요약 표로 봅니다.</p>
+    </div>
+    <div class="card">
+      <h2>현황</h2>
+      <p><span class="badge done">코어 설계서 승인</span></p>
+      <p><span class="badge done">결정 기록·AGENTS.md 갱신</span></p>
+      <p><span class="badge done">HTML 리포트 추가됨</span></p>
+      <p><span class="badge info">문서만 변경</span></p>
+      <p><span class="badge pending">구현 계획 대기</span></p>
+      <p><span class="badge pending">코드 없음</span></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>범위</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>설계 범위</h3>
+        <p><span class="badge done">완료</span></p>
+        <ul class="list">
+          <li>기술 설계의 하위 프로젝트 분해</li>
+          <li>모듈 구성(<code>packages/core</code>·<code>packages/sim</code>)</li>
+          <li>한 매치의 데이터 흐름과 재현성</li>
+          <li>LLM 호출부(<code>LlmClient</code>), 영어 프롬프트, 길이 예산 단위</li>
+          <li>실패·측정 오염 처리</li>
+          <li>실행 설정, CLI, 출력물, 규칙 참모 방향</li>
+          <li>의존성, 테스트, 완료 기준</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>미구현</h3>
+        <p><span class="badge pending">대기</span></p>
+        <ul class="list">
+          <li>구현 계획</li>
+          <li>수치 표·세팅 프리셋 시작값</li>
+          <li>맵 1장 데이터</li>
+          <li>타임아웃·무효 기준·동시 호출 상한 시작값</li>
+          <li>코드 전부</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>범위 외</h3>
+        <p><span class="badge out">제외</span></p>
+        <ul class="list">
+          <li>사람 조작(직접 수정·수동 재계획·탐험)</li>
+          <li>매치 밖 메타(명부·유대·훈련·승급)</li>
+          <li>화면(HTML 리플레이 포함)</li>
+          <li>Claude 외 LLM 어댑터</li>
+          <li>서버·계정·클라이언트</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>하위 프로젝트 분해</h2>
+    <table>
+      <tr><th>#</th><th>하위 프로젝트</th><th>내용</th><th>상태</th></tr>
+      <tr><td><strong>1</strong><br>코어</td><td>시뮬레이션 코어 + 빠른 턴 모드</td><td>매치 규칙, 규칙·LLM 참모, 봇, 매치 기록, 가설 측정</td><td><span class="badge done">설계 승인</span></td></tr>
+      <tr><td><strong>2</strong><br>서버</td><td>월드 서버</td><td>실시간 1시간 턴 스케줄, 매치 관리, 저장</td><td><span class="badge muted">미설계</span></td></tr>
+      <tr><td><strong>3</strong><br>연동</td><td>계정·연동</td><td>구독·API 키 연결과 보관 보안</td><td><span class="badge muted">미설계</span></td></tr>
+      <tr><td><strong>4</strong><br>클라이언트</td><td>다중 플랫폼 클라이언트</td><td>PC·모바일 등</td><td><span class="badge muted">미설계</span></td></tr>
+      <tr><td><strong>5</strong><br>메타</td><td>메타</td><td>명부·등급·유대·훈련·승급</td><td><span class="badge muted">미설계</span></td></tr>
+    </table>
+    <p class="small">2~5의 순서는 1의 측정 결과를 보고 정합니다.</p>
+  </section>
+
+  <section>
+    <h2>모듈 구성</h2>
+    <div class="two">
+      <div class="card">
+        <h3><code>packages/core</code> — 순수 TS, Node API 금지</h3>
+        <table>
+          <tr><th>모듈</th><th>하는 일</th></tr>
+          <tr><td><code>state</code></td><td>상태 타입, <code>initState</code></td></tr>
+          <tr><td><code>rules</code></td><td><code>processTurn</code> → 새 상태 + 이벤트</td></tr>
+          <tr><td><code>orders</code></td><td>명령 검증, 확정 순서</td></tr>
+          <tr><td><code>view</code></td><td>시야(안개), 보고서 데이터</td></tr>
+          <tr><td><code>prompt</code></td><td>프롬프트 조립, 예산 자르기, 출력 스키마·파서</td></tr>
+          <tr><td><code>staff</code></td><td>참모 인터페이스, 규칙 참모</td></tr>
+          <tr><td><code>rng</code></td><td>시드 난수</td></tr>
+          <tr><td><code>data</code></td><td>수치 표, 맵, 세팅 프리셋</td></tr>
+        </table>
+        <p class="small">서버와 클라이언트가 그대로 import하는 부분입니다.</p>
+      </div>
+      <div class="card">
+        <h3><code>packages/sim</code> — Node 전용</h3>
+        <table>
+          <tr><th>모듈</th><th>하는 일</th></tr>
+          <tr><td><code>llm</code></td><td><code>LlmClient</code>: <code>claude -p</code> 어댑터, 가짜, 기록 재생</td></tr>
+          <tr><td><code>llm-staff</code></td><td>조립 → 호출 → 파서, 실패 시 규칙 참모 대체</td></tr>
+          <tr><td><code>runner</code></td><td>매치 실행기, CLI, 배치</td></tr>
+          <tr><td><code>report</code></td><td>매치 기록, Markdown 보고서, 요약 표</td></tr>
+        </table>
+        <p class="small">나중에 <code>packages/server</code>, <code>apps/client</code>를 같은 저장소에 더합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>한 매치의 데이터 흐름</h2>
+    <div class="card">
+      <div class="transition">
+        <span class="state">실행 설정</span><span class="arrow">→</span>
+        <span class="action">initState</span><span class="arrow">→</span>
+        <span class="state">참모 호출(6자리 동시)</span><span class="arrow">→</span>
+        <span class="action">검증·대체</span><span class="arrow">→</span>
+        <span class="state">제약 적용·확정</span><span class="arrow">→</span>
+        <span class="action">processTurn</span><span class="arrow">→</span>
+        <span class="state">새 상태 + 이벤트</span>
+      </div>
+      <div class="transition">
+        <span class="state">새 상태 + 이벤트</span><span class="arrow">→</span>
+        <span class="action">조기 승리 / 남은 자리 1 / 턴 수 도달</span><span class="arrow">→</span>
+        <span class="state">종료·점수 순위</span>
+      </div>
+      <p class="small">종료 조건이 아니면 참모 호출로 돌아갑니다. 무작위는 모두 <code>(매치 시드, 턴, 자리)</code>에서 나오고, 비결정적인 LLM 응답은 원문을 기록해 재생합니다. 턴별 전체 상태 스냅샷은 저장하지 않습니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>LLM 호출부</h2>
+    <table>
+      <tr><th>구현</th><th>내용</th></tr>
+      <tr><td><code>claude -p</code> 어댑터</td><td><code>--output-format json --json-schema --system-prompt-file --tools "" --no-session-persistence --model</code>, 보고서는 stdin. <code>--bare</code>는 구독 인증을 읽지 않아 쓰지 않음</td></tr>
+      <tr><td>가짜</td><td>시드로 정상·깨진 출력을 냄. 테스트용</td></tr>
+      <tr><td>기록 재생</td><td><code>(턴, 자리)</code>의 원문 응답 반환</td></tr>
+    </table>
+    <div class="two">
+      <div class="card">
+        <h3>확인한 것 (2026-10-27, Claude Code 2.1.291)</h3>
+        <ul class="list">
+          <li><span class="badge done">확인</span> <code>structured_output</code>에 스키마에 맞는 JSON, <code>usage</code>에 토큰</li>
+          <li><span class="badge done">확인</span> haiku 1회 약 7초</li>
+          <li><span class="badge done">확인</span> stdin 입력, <code>--system-prompt-file</code></li>
+          <li><span class="badge warn">미확인</span> 구독 한도 실제 횟수, 한도 소진 오류 문구</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>프롬프트와 실패</h3>
+        <ul class="list">
+          <li>프롬프트·메모·전쟁 일지 모두 <strong>영어</strong>(월드 서버)</li>
+          <li>출력 스키마는 zod 한 벌에서 JSON Schema로 변환</li>
+          <li>길이 예산은 결정적 근사(글자 수 비례)로 세고 실제 토큰은 기록만</li>
+          <li>재시도 없음. 실패율이 기준을 넘은 매치는 <strong>무효</strong>, LLM 자리 전부 연속 실패 시 배치 중단</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>CLI와 출력물</h2>
+    <div class="two">
+      <div class="card">
+        <h3>CLI</h3>
+        <table>
+          <tr><th>명령</th><th>하는 일</th></tr>
+          <tr><td><code>run</code></td><td>매치 하나</td></tr>
+          <tr><td><code>batch</code></td><td>실험 파일의 변형 × 매치 수</td></tr>
+          <tr><td><code>replay</code></td><td>기록 재생으로 결과 일치 확인</td></tr>
+          <tr><td><code>report</code></td><td>보고서 재생성</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>출력물 (<code>runs/</code>, git 제외)</h3>
+        <ul class="list">
+          <li><code>match.json</code>: 매치 기록</li>
+          <li><code>report.md</code>: 순위, 턴별 요약, 주요 이벤트, 전쟁 일지·메모 전문, 대체 통계</li>
+          <li><code>summary.md</code>: A 프리셋별 순위, B 모델 × 계수 승률, D 별 수-순위 상관, E LLM 대 규칙 참모, 무효 수</li>
+        </ul>
+        <p class="small">C는 사용자가 <code>report.md</code>를 읽고 판정합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>의존성과 완료 기준</h2>
+    <div class="two">
+      <div class="card">
+        <h3>의존성 (승인, 버전은 <code>npm view</code> 조회)</h3>
+        <table>
+          <tr><th>패키지</th><th>버전</th><th>용도</th></tr>
+          <tr><td><code>typescript</code></td><td>7.0.2</td><td>전체</td></tr>
+          <tr><td><code>zod</code></td><td>4.6.7</td><td>스키마·검증·JSON Schema</td></tr>
+          <tr><td><code>vitest</code></td><td>5.0.5</td><td>테스트</td></tr>
+          <tr><td><code>tsx</code></td><td>4.23.15</td><td>CLI 실행</td></tr>
+          <tr><td><code>@types/node</code></td><td>설치 시점</td><td>sim 타입</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>완료 기준</h3>
+        <ol class="list">
+          <li>규칙 참모 6명 120턴 결정적 완주 + <code>report.md</code></li>
+          <li><code>claude -p</code> LLM 참모 매치 완주, 실패·대체 기록</li>
+          <li><code>batch</code>가 A·B·D·E 요약 표 생성</li>
+          <li><code>replay</code>가 같은 결과 재현</li>
+          <li>LLM 매치 <code>report.md</code>로 가설 C 판정 가능</li>
+        </ol>
+        <p class="small">실제 <code>claude -p</code> 호출은 자동 테스트에 넣지 않고 수동 스모크로 확인합니다. 가설의 참·거짓 판정은 완료 기준이 아닙니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>미결 사항</h2>
+    <table>
+      <tr><th>#</th><th>질문</th><th>현재 입장</th></tr>
+      <tr><td>1</td><td>수치 표·세팅 프리셋 시작값은?</td><td>구현 계획에서 제안하고 사용자 검토 뒤 실측으로 조정.</td></tr>
+      <tr><td>2</td><td>타임아웃·무효 기준·동시 호출 상한은?</td><td>구현 계획에서 시작값을 정하고 실측으로 조정.</td></tr>
+      <tr><td>3</td><td>구독 한도와 한도 소진 오류 문구는?</td><td>미확인. 구현 첫 단계에서 확인.</td></tr>
+      <tr><td>4</td><td>전쟁 일지를 플레이어 언어로 어떻게 보여 줄까?</td><td>번역 계층. 클라이언트 설계에서.</td></tr>
+      <tr><td>5</td><td>하위 프로젝트 2~5의 순서는?</td><td>코어 측정 결과를 보고 결정.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>결정 로그</h2>
+    <table>
+      <tr><th>#</th><th>결정</th><th>근거</th></tr>
+      <tr><td>1</td><td>기술 설계를 하위 프로젝트 5개로 분해, 코어 먼저</td><td>가설 A·E가 깨지면 게임이 성립하지 않으므로 서버·클라이언트보다 먼저 확인한다.</td></tr>
+      <tr><td>2</td><td>클라이언트는 PC·모바일 등 다중 플랫폼</td><td>사용자 결정.</td></tr>
+      <tr><td>3</td><td>TypeScript(Node 24)</td><td>UI 중심 장르라 웹 기술 클라이언트가 자연스럽고, 코어·서버·클라이언트가 타입과 검증을 공유한다.</td></tr>
+      <tr><td>4</td><td>월드 서버, 프롬프트·메모·일지 모두 영어</td><td>모든 플레이어·모델에 같은 템플릿이라 공정하고, 상대 일지는 다른 나라 플레이어에게도 공개된다.</td></tr>
+      <tr><td>5</td><td>순수 턴 함수 + 비동기 참모 구조</td><td>재현·서버 이전·클라이언트 표시·분석에 모두 그대로 재사용된다. 가변 객체·이벤트 소싱은 기각.</td></tr>
+      <tr><td>6</td><td>매치 규칙 전부, 사람 조작·메타 제외</td><td>빠른 턴 모드는 봇만 돌리므로 사람 조작이 쓰이지 않고, 가설 A가 빠진 규칙으로 왜곡되지 않게 한다.</td></tr>
+      <tr><td>7</td><td>호출량은 자리 구성 + 턴 수로 실행마다 조절</td><td>가설마다 필요한 구성이 다르고, 구독 한도 안에서 측정해야 한다.</td></tr>
+      <tr><td>8</td><td>실험에서도 재시도 없음, 대체 많은 매치는 무효 표시</td><td>측정 조건을 실제 게임 규칙과 같게 유지한다.</td></tr>
+      <tr><td>9</td><td>결과는 JSON 기록 + Markdown, 화면 없음</td><td>첫 범위에 화면 작업을 넣지 않는다.</td></tr>
+      <tr><td>10</td><td>zod로 스키마 한 벌</td><td>TS 타입·런타임 검증·<code>--json-schema</code> 입력을 한 정의에서 얻고, 브라우저에서도 재사용한다.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>다음 Phase 권장</h2>
+    <div class="card">
+      <p><span class="badge info">다음</span> <strong>코어 구현 계획 작성</strong></p>
+      <p>설계서를 단계별 구현 계획으로 옮깁니다. 첫 단계는 의존성 설치와 <code>claude -p</code> 구독 한도·오류 문구 확인이고, 계획 안에서 수치 표·세팅 프리셋·맵 1장의 시작값을 제안해 검토받습니다.</p>
+      <p class="small">향후: 코어 측정 결과를 보고 서버(월드 서버), 계정·연동, 다중 플랫폼 클라이언트, 메타의 설계 순서를 정합니다.</p>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
