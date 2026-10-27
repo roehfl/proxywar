@@ -3,7 +3,7 @@ import { neighbors } from "./map";
 import type { GameState, Mission, Plan, Recruit, SeatId } from "./types";
 
 export interface PlanIssue {
-  item: "mission" | "recruit";
+  item: "mission" | "recruit" | "build";
   index: number;
   reason: string;
 }
@@ -38,7 +38,7 @@ export function validatePlan(state: GameState, seat: SeatId, plan: Plan): Checke
       recruits.push(recruit);
     }
   });
-  return { plan: { missions, recruits }, issues };
+  return { plan: { missions, recruits, builds: [] }, issues };
 }
 
 function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: ReadonlySet<string>): string | null {
@@ -47,7 +47,7 @@ function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: Re
   if (hero.seat !== seat) return "not your hero";
   if (hero.status !== "active") return "hero not active";
   if (used.has(hero.id)) return "duplicate hero";
-  if (mission.kind === "defend") return null;
+  if (mission.kind === "defend" || mission.kind === "govern") return null;
   if (mission.draw !== undefined && (!Number.isInteger(mission.draw) || mission.draw < 0)) return "bad draw";
   const dest = mission.kind === "move" ? mission.to : mission.target;
   if (!Object.hasOwn(state.nodes, dest)) return "unknown node";

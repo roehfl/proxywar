@@ -15,7 +15,7 @@ export function drawTroops(state: GameState, hero: Hero, requested: number, even
 export function resolveMovement(state: GameState, missions: ReadonlyMap<string, Mission>, events: GameEvent[]): void {
   for (const hero of state.heroes) {
     const mission = missions.get(hero.id);
-    if (!mission || mission.kind === "defend" || hero.status !== "active") continue;
+    if (!mission || mission.kind === "defend" || mission.kind === "govern" || hero.status !== "active") continue;
     drawTroops(state, hero, mission.draw ?? 0, events);
     if (mission.kind === "move") {
       const from = hero.location;

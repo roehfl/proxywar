@@ -17,7 +17,7 @@ export const ruleStaff: Staff = {
 };
 
 export function rulePlan(state: GameState, seat: SeatId): Plan {
-  return { missions: planMissions(state, seat), recruits: planRecruits(state, seat) };
+  return { missions: planMissions(state, seat), recruits: planRecruits(state, seat), builds: [] };
 }
 
 function reserveAt(state: GameState, seat: SeatId, node: NodeId): number {

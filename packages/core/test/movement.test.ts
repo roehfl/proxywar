@@ -26,11 +26,19 @@ describe("resolveMovement", () => {
     expect(state.nodes.c0.garrison).toBe(360);
   });
 
-  it("defend와 임무 없는 영웅은 그대로다", () => {
+  it("defend·govern과 임무 없는 영웅은 그대로다", () => {
     const state = makeState();
     const events: GameEvent[] = [];
-    resolveMovement(state, new Map<string, Mission>([["s0h0", { kind: "defend", hero: "s0h0" }]]), events);
+    resolveMovement(
+      state,
+      new Map<string, Mission>([
+        ["s0h0", { kind: "defend", hero: "s0h0" }],
+        ["s0h1", { kind: "govern", hero: "s0h1" }],
+      ]),
+      events,
+    );
     expect(heroOf(state, "s0h0")).toMatchObject({ location: "c0", troops: 0 });
+    expect(heroOf(state, "s0h1")).toMatchObject({ location: "c0", troops: 0 });
     expect(events).toEqual([]);
   });
 });

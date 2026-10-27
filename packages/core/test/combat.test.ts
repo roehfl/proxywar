@@ -19,7 +19,7 @@ describe("resolveCombat", () => {
     const state = makeState();
     heroOf(state, "s0h0").troops = 100;
     const events = run(state, attack("s0h0", "f0"));
-    expect(state.nodes.f0).toEqual({ id: "f0", owner: 0, garrison: 0 });
+    expect(state.nodes.f0).toEqual({ id: "f0", owner: 0, garrison: 0, buildings: { production: 0, barracks: 0, walls: 0 } });
     const hero = heroOf(state, "s0h0");
     expect(hero.location).toBe("f0");
     expect(hero.troops).toBeGreaterThanOrEqual(86);

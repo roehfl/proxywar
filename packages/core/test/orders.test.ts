@@ -8,11 +8,11 @@ function reasons(state: GameState, plan: Plan): string[] {
 }
 
 function missionsOnly(...missions: Mission[]): Plan {
-  return { missions, recruits: [] };
+  return { missions, recruits: [], builds: [] };
 }
 
 function recruitsOnly(...recruits: Recruit[]): Plan {
-  return { missions: [], recruits };
+  return { missions: [], recruits, builds: [] };
 }
 
 describe("validatePlan", () => {
@@ -26,6 +26,7 @@ describe("validatePlan", () => {
         { kind: "defend", hero: "s0h2" },
       ],
       recruits: [{ node: "c0", amount: 30 }],
+      builds: [],
     };
     const checked = validatePlan(state, 0, plan);
     expect(checked.issues).toEqual([]);

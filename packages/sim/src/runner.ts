@@ -43,7 +43,7 @@ export interface MatchRecord {
   result: MatchResult;
 }
 
-const EMPTY_PLAN: Plan = { missions: [], recruits: [] };
+const EMPTY_PLAN: Plan = { missions: [], recruits: [], builds: [] };
 
 export function staffFor(config: StaffConfig): Staff {
   switch (config.kind) {
