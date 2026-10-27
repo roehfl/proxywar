@@ -1,5 +1,5 @@
-import { BALANCE } from "../data/balance";
-import { compareText, neighbors, nodeType } from "../map";
+import { BALANCE, terrainOf } from "../data/balance";
+import { compareText, neighbors } from "../map";
 import type { Rng } from "../rng";
 import type { GameEvent, GameState, Hero, Mission, NodeId, NodeState, Resources, SeatId } from "../types";
 import { attackPower, bestHero, defenders, heroModifier, sumTroops } from "./power";
@@ -63,7 +63,7 @@ function resolveAttack(
   const dPow =
     defendTroops *
     heroModifier(bestHero(defHeroes)) *
-    BALANCE.terrain[nodeType(state.map, target)] *
+    terrainOf(state, target) *
     rng.range(1 - spread, 1 + spread);
   const battle = {
     kind: "battle" as const,
