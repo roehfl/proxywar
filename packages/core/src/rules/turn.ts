@@ -2,7 +2,10 @@ import { createRng } from "../rng";
 import type { GameEvent, GameState, Mission, Orders } from "../types";
 import { resolveCombat } from "./combat";
 import { resolveEconomy } from "./economy";
+import { resolveGrowth } from "./growth";
+import { recoverHeroes } from "./heroes";
 import { resolveMovement } from "./movement";
+import { applyLoyalty } from "./traits";
 import { resolveVictory } from "./victory";
 
 export interface TurnResult {
@@ -12,18 +15,22 @@ export interface TurnResult {
 
 /**
  * 정각 처리 한 번. 원본을 바꾸지 않고 새 상태와 이벤트를 돌려준다.
- * orders는 validatePlan을 통과한 확정 명령이다. 난수는 (매치 시드, 새 턴)에서 만든다.
+ * orders는 validatePlan을 통과한 확정 명령이다. 난수는 (매치 시드, 새 턴, 용도)에서 만든다.
+ * 순서: 충성 판정 → 이동 → 전투 → 생산·건설·모집·유지비 → 레벨업 → 회복 → 탈락·종료
  */
 export function processTurn(prev: GameState, orders: Orders): TurnResult {
   if (prev.ended) throw new Error("match already ended");
   const state: GameState = JSON.parse(JSON.stringify(prev));
   state.turn += 1;
-  const rng = createRng(state.matchSeed, state.turn, "turn");
+  const rng = (purpose: string) => createRng(state.matchSeed, state.turn, purpose);
   const events: GameEvent[] = [];
   const missions = collectMissions(state, orders);
+  applyLoyalty(state, missions, rng("loyalty"), events);
   resolveMovement(state, missions, events);
-  resolveCombat(state, missions, rng, events);
+  resolveCombat(state, missions, rng("turn"), events);
   resolveEconomy(state, orders, missions, events);
+  resolveGrowth(state, rng("growth"), events);
+  recoverHeroes(state, events);
   resolveVictory(state, events);
   return { state, events };
 }

@@ -1,8 +1,9 @@
 import { BALANCE } from "../data/balance";
 import { ownedNodes, scoreOf } from "../summary";
 import type { GameEvent, GameState, MatchResult, SeatId } from "../types";
+import { releasePrisoners } from "./heroes";
 
-/** 탈락 → 과반 연속 기록 → 종료 판정 */
+/** 탈락(잡고 있던 포로 석방) → 과반 연속 기록 → 종료 판정 */
 export function resolveVictory(state: GameState, events: GameEvent[]): void {
   for (const seat of state.seats) {
     if (seat.eliminatedAt !== null || ownedNodes(state, seat.id).length > 0) continue;
@@ -12,8 +13,11 @@ export function resolveVictory(state: GameState, events: GameEvent[]): void {
       if (hero.seat !== seat.id) continue;
       hero.status = "out";
       hero.troops = 0;
+      hero.injuredUntil = null;
+      hero.captor = null;
     }
     events.push({ kind: "eliminated", seat: seat.id });
+    releasePrisoners(state, seat.id, events);
   }
   updateMajority(state);
   const result = checkEnd(state);

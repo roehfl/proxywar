@@ -105,4 +105,30 @@ describe("processTurn", () => {
     expect(a).toEqual(b);
     expect(battleOf(c.events).attackPower).not.toBe(battleOf(a.events).attackPower);
   });
+
+  it("부상한 영웅은 세 번의 턴 처리 동안 빠졌다가 세 번째 처리 끝에 회복한다", () => {
+    let state = makeState();
+    Object.assign(heroOf(state, "s0h0"), { status: "injured", injuredUntil: 3 });
+    for (let turn = 1; turn <= 2; turn++) {
+      state = processTurn(state, noOrders()).state;
+      expect(heroOf(state, "s0h0").status).toBe("injured");
+    }
+    const { state: next, events } = processTurn(state, noOrders());
+    expect(heroOf(next, "s0h0").status).toBe("active");
+    expect(events).toContainEqual({ kind: "heroRecovered", seat: 0, hero: "s0h0" });
+  });
+
+  it("탈락한 자리가 잡고 있던 포로는 풀려나 자기 수도로 돌아간다", () => {
+    const state = makeState();
+    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0 });
+    state.nodes.m0.owner = 5;
+    state.nodes.m0.garrison = 0;
+    Object.assign(heroOf(state, "s5h0"), { location: "m0", troops: 500 });
+    const orders = noOrders();
+    orders[5].missions.push({ kind: "attack", hero: "s5h0", target: "c0" });
+    const { state: next, events } = processTurn(state, orders);
+    expect(next.seats[0].eliminatedAt).toBe(1);
+    expect(heroOf(next, "s1h0")).toMatchObject({ status: "active", captor: null, location: "c1" });
+    expect(events).toContainEqual({ kind: "heroReleased", seat: 1, hero: "s1h0", to: "c1" });
+  });
 });
