@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>proxywar 1b-1 영웅·건물 구현</title>
+  <style>
+    body { margin: 0; font-family: Arial, "Malgun Gothic", sans-serif; color: #17212f; background: #f5f7fb; line-height: 1.55; }
+    header { background: #18324a; color: #fff; padding: 34px 42px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 56px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+    h2 { margin: 34px 0 14px; font-size: 21px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e8edf4; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #edf3f8; color: #26384c; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    code { font-family: Consolas, monospace; background: #eef3f8; padding: 2px 5px; border-radius: 4px; }
+    pre { background: #101827; color: #eef6ff; padding: 14px; border-radius: 8px; overflow: auto; font-size: 13px; }
+    .badge { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .done { background: #d9f3e5; color: #146137; }
+    .info { background: #dbeafe; color: #1d4ed8; }
+    .pending { background: #fff0c2; color: #765300; }
+    .out { background: #f6d9dc; color: #842029; }
+    .warn { background: #ffe8b3; color: #7a4b00; }
+    .muted { background: #e8edf2; color: #536171; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .summary { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+    .card { background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+    .list { margin: 0; padding-left: 18px; }
+    .list li { margin: 5px 0; }
+    .small { font-size: 13px; color: #536171; }
+    .transition { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .transition .state { background: #edf3f8; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+    .transition .arrow { color: #536171; font-size: 16px; }
+    .transition .action { font-size: 12px; color: #1d4ed8; }
+    @media (max-width: 880px) {
+      header { padding: 26px 22px; }
+      main { padding: 20px 14px 38px; }
+      .grid, .two, .summary { grid-template-columns: 1fr; }
+      th, td { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>proxywar (가제)</div>
+  <h1>1b-1 영웅·건물 구현: 1b 규칙 완성의 첫 조각</h1>
+  <span class="badge done">구현 완료</span>
+  <span class="badge info">브랜치 sim-core-1b-1</span>
+  <span class="badge muted">작성일: 2026-10-27</span>
+</header>
+
+<main>
+
+<h2>요약</h2>
+<div class="summary">
+  <div class="card">
+    <p>영웅이 매치 안에서 경험치로 성장하고, 특성(충성·신중·용맹)대로 움직이며, 패하면 부상하거나 포로가 됩니다. 거점에는 생산·병영·성벽을 지을 수 있고, 점수에 거점 발전도와 영웅 성장이 들어갑니다.</p>
+    <p>세부 규칙은 계획 머리말의 제안표를 사용자가 확정한 그대로 구현했습니다. 리뷰 세 번에서 Critical·Important 지적은 없었습니다.</p>
+    <p>규칙 참모 6명 매치는 두 설정 모두 120턴까지 완주했고 정체는 없었습니다. 다만 1a보다 매치가 길어져 턴 제한으로 끝나는 시드가 생겼습니다.</p>
+  </div>
+  <div class="card">
+    <h3>현황</h3>
+    <p><span class="badge done">Task 1~12 완료</span></p>
+    <p><span class="badge done">테스트 134개 통과</span> <span class="badge done">타입 검사 통과</span></p>
+    <p><span class="badge pending">규칙 확인 2건 대기</span></p>
+    <p><span class="badge muted">push·main 머지 안 함</span></p>
+  </div>
+</div>
+
+<h2>범위</h2>
+<div class="grid">
+  <div class="card">
+    <h3><span class="badge done">구현 범위</span></h3>
+    <ul class="list">
+      <li>경험치·레벨·레벨업 상승폭(등급 기준 × 숨은 성장 계수 × 무작위)</li>
+      <li>특성 3종과 등급별 슬롯, 충성 불복·신중 후퇴·용맹 보정</li>
+      <li>부상 3턴과 회복, 포로와 탈락 때 석방</li>
+      <li>운영 임무 <code>govern</code></li>
+      <li>건물 3종(<code>production</code>·<code>barracks</code>·<code>walls</code>)과 건설 명령, 점령 시 건물 손상</li>
+      <li>점수 확장, 규칙 참모의 운영·건설</li>
+      <li>보고서 순위표 열과 영웅·건설 통계, 등급·특성 혼합 설정 <code>rule6-traits</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="badge pending">미구현 (1b-2·1b-3)</span></h3>
+    <ul class="list">
+      <li>시야와 보고서 데이터(참모는 아직 전체 상태를 봄)</li>
+      <li>세팅 5종·프리셋, 참모 메모 칸, 정보 구성</li>
+      <li>제약·확정 순서, 조건부 명령</li>
+      <li>외교 6종과 포로 교환</li>
+      <li>정보 건물(첩보망은 1b-2, 참모부는 1c), 기동 능력치의 용도(1b-2)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3><span class="badge out">범위 외</span></h3>
+    <ul class="list">
+      <li>LLM 참모, <code>replay</code>(1c)</li>
+      <li><code>batch</code>·<code>report</code> 명령, 수치 조정(1d)</li>
+      <li>서버·계정·클라이언트·메타(하위 프로젝트 2~5)</li>
+    </ul>
+  </div>
+</div>
+
+<h2>한 턴의 처리</h2>
+<div class="card">
+  <div class="transition">
+    <span class="state">충성 판정</span><span class="arrow">→</span>
+    <span class="state">이동</span><span class="arrow">→</span>
+    <span class="state">전투</span><span class="action">신중 후퇴·경험치·부상·포로·건물 손상</span><span class="arrow">→</span>
+    <span class="state">경제</span><span class="action">생산(운영·생산 건물) → 건설 → 모집 → 유지비 → 운영 경험치</span><span class="arrow">→</span>
+    <span class="state">레벨업</span><span class="arrow">→</span>
+    <span class="state">회복</span><span class="arrow">→</span>
+    <span class="state">탈락·종료</span><span class="action">포로 석방</span>
+  </div>
+  <p class="small">난수는 <code>(매치 시드, 턴, 용도)</code>에서 만듭니다. 용도는 충성 <code>"loyalty"</code>, 전투·부상 <code>"turn"</code>(1a와 같음), 레벨업 <code>"growth"</code>입니다.</p>
+</div>
+
+<h2>확정한 세부 규칙</h2>
+<table>
+  <tr><th>항목</th><th>규칙</th></tr>
+  <tr><td>운영 <code>govern</code></td><td>서 있는 아군 거점의 생산을 <code>내정 × 3%</code> 늘립니다. 같은 거점에 여럿이면 내정이 가장 높은 한 명만 셉니다. 운영 중인 영웅은 그 거점 방어에 끼지 않고, 경험치 5를 얻습니다.</td></tr>
+  <tr><td>경험치·레벨</td><td>전투에 나서면 10, 이기면 10 더. 다음 레벨까지 <code>20 × 레벨</code>. 레벨 상한은 1성 10 ~ 5성 14입니다.</td></tr>
+  <tr><td>레벨업</td><td>능력치 4종이 각각 <code>기준 상승폭(1성 0.5 ~ 5성 0.9) × 성장 계수 × 0.5~1.5</code>만큼 오릅니다.</td></tr>
+  <tr><td>특성</td><td>기본값 3, 슬롯은 1·1·2·2·3개입니다. 충성 1·2는 20%·10% 확률로 불복합니다. 신중 4·5는 공격력이 방어력 × 1.0·1.2 미만이면 물러납니다. 용맹은 1점당 공격 배수 +0.03, 부상 확률 +10%p입니다.</td></tr>
+  <tr><td>부상·포로</td><td>공격에서 졌거나 거점을 잃고 후퇴하면 부상 확률 30%이고, 부상하면 3턴 빠집니다. 후퇴할 곳이 없으면 점령한 자리의 포로가 되고, 잡은 자리가 탈락하면 석방됩니다.</td></tr>
+  <tr><td>건물</td><td>레벨 0~3, 한 거점에 턴당 하나입니다. 비용은 금 <code>20L</code>·자재 <code>30L</code>이고 효과는 다음 턴부터입니다. 생산 건물은 레벨당 +50%, 병영은 모집 상한 +10(농장 등에서도 모집 가능), 성벽은 지형 배수 +0.1입니다. 점령되면 종류마다 한 레벨씩 내려갑니다.</td></tr>
+  <tr><td>점수</td><td><code>거점 × 10 + 병력 ÷ 10 + 건물 레벨 합 × 3 + (영웅 레벨 − 1) 합 × 2</code>입니다. out 영웅은 세지 않습니다.</td></tr>
+</table>
+
+<h2>실측 결과 (시드 1)</h2>
+<table>
+  <tr><th>설정</th><th>종료</th><th>승자</th><th>턴</th><th>탈락</th><th>자리 간 점령</th></tr>
+  <tr><td><code>rule6</code> (전원 3성, 기본 특성)</td><td><span class="badge warn">턴 제한</span></td><td>Ember</td><td>120</td><td>Cobalt (T91)</td><td>415건, 10턴 넘게 끊긴 구간 없음</td></tr>
+  <tr><td><code>rule6-traits</code> (등급·특성 혼합)</td><td><span class="badge warn">턴 제한</span></td><td>Ember</td><td>120</td><td>Dune (T88)</td><td>352건, 10턴 넘게 끊긴 구간 없음</td></tr>
+</table>
+<div class="two">
+  <div class="card">
+    <h3>특성이 실제로 작동하는가 (<code>rule6-traits</code>)</h3>
+    <ul class="list">
+      <li>명령 불복: Cobalt(충성 1) 32회, Ember(충성 2) 16회입니다. 나머지 자리는 0회입니다.</li>
+      <li>신중 후퇴는 신중 4·5인 Briar 3회, Dune 4회, Ember 3회만 나왔습니다.</li>
+      <li>용맹 5인 Aster는 부상이 11회로 가장 많습니다.</li>
+      <li>모든 자리에서 레벨업과 건설이 일어났고, 무효 명령은 0건입니다.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>1a 대비: 매치가 길어짐</h3>
+    <ul class="list">
+      <li><code>rule6</code> 시드 1~8: 1a는 8개 모두 T65~99에 조기 승리했습니다. 지금은 3개가 턴 제한이고, 5개는 T74~116에 조기 승리했습니다.</li>
+      <li>건설·운영·부상·성장을 하나씩 꺼 봐도 턴 제한 비율은 조금만 줄었습니다. 한 기능 때문이 아니라 여러 변경이 쌓인 결과입니다.</li>
+      <li>수치 조정은 1d 범위라 하지 않았습니다.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>계획 대비 변경</h2>
+<table>
+  <tr><th>#</th><th>변경</th><th>근거</th></tr>
+  <tr><td>1</td><td>정보 건물은 1b-1에서 빼고 1b-2(첩보망)·1c(참모부)로 미뤘습니다.</td><td>효과가 시야와 보고서 예산에만 닿아서, 지금 넣으면 효과 없는 건물이 됩니다.</td></tr>
+  <tr><td>2</td><td>1a의 "후퇴할 곳이 없으면 <code>out</code>"을 포로로 바꿨습니다.</td><td>포로 규칙 도입. <code>out</code>은 탈락한 자리의 영웅에게만 씁니다.</td></tr>
+  <tr><td>3</td><td>규칙 참모가 내부 거점에서 약한 영웅에게 운영을 맡깁니다.</td><td>1a에서는 빈손으로 전선에 나갔습니다.</td></tr>
+  <tr><td>4</td><td>매치 기록 <code>version</code>을 2로 올렸습니다.</td><td>상태·지표·이벤트 모양이 바뀌었습니다.</td></tr>
+  <tr><td>5</td><td>(실행 중) 리뷰 지적으로 테스트 5개를 보강했습니다(소스 변경 없음).</td><td>기존 단언이 주장한 동작을 실제로 검증하지 못했습니다. 보강한 테스트 중 두 개는 소스를 일부러 틀리게 바꿔 실패하는 것까지 확인했습니다.</td></tr>
+</table>
+
+<h2>리뷰 결과</h2>
+<table>
+  <tr><th>범위</th><th>사양</th><th>Critical·Important</th><th>Minor 처리</th></tr>
+  <tr><td>Task 1~3</td><td><span class="badge done">일치</span></td><td>없음</td><td>2건 기록(약한 이동 테스트는 타입 검사가 보호, zod 우회 시 특성 <code>undefined</code>)</td></tr>
+  <tr><td>Task 4~7</td><td><span class="badge done">일치</span></td><td>없음</td><td>테스트 3건 보강, 규칙 확인 2건, 기록 3건</td></tr>
+  <tr><td>Task 8~11</td><td><span class="badge done">일치</span></td><td>없음</td><td>테스트 2건 보강, 기록 1건(동시 탈락 때 석방 사건이 한쪽에만 남음)</td></tr>
+</table>
+<p class="small">같은 설정으로 두 번 돌린 <code>match.json</code>은 바이트까지 같았습니다. 규칙 참모 매치 9개에서 무효 명령과 <code>unaffordable</code> 건너뜀은 0건이었습니다.</p>
+
+<h2>테스트 결과</h2>
+<pre>npm test           → Test Files  15 passed (15) · Tests  134 passed (134)   (core 127, sim 7)
+npm run typecheck  → 오류 없음
+기준선(1a)         → Test Files  12 passed · Tests  83 passed</pre>
+
+<h2>변경 파일</h2>
+<div class="two">
+  <div class="card">
+    <h3>새 파일</h3>
+    <ul class="list">
+      <li><code>packages/core/src/rules/growth.ts</code>: 경험치와 레벨업</li>
+      <li><code>packages/core/src/rules/traits.ts</code>: 충성 판정, 신중 기준</li>
+      <li><code>packages/core/src/rules/heroes.ts</code>: 부상·후퇴·포로·회복·석방</li>
+      <li><code>packages/sim/configs/rule6-traits.json</code></li>
+      <li>테스트 <code>growth</code>·<code>traits</code>·<code>heroes</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>바꾼 파일</h3>
+    <ul class="list">
+      <li>core: <code>types</code>·<code>balance.json</code>·<code>balance</code>·<code>setup</code>·<code>state</code>·<code>orders</code>·<code>summary</code>·<code>index</code></li>
+      <li>규칙: <code>power</code>·<code>movement</code>·<code>combat</code>·<code>economy</code>·<code>turn</code>·<code>victory</code></li>
+      <li>참모: <code>rule-staff</code></li>
+      <li>sim: <code>runner</code>·<code>report</code></li>
+      <li>테스트 파일 8개, 문서(결정 기록·AGENTS.md·계획)</li>
+    </ul>
+  </div>
+</div>
+<p class="small">브랜치 커밋 15개(계획 문서 <code>fc850d5</code>부터 이 보고서까지), 코드·테스트 약 +1,250줄.</p>
+
+<h2>미결 사항</h2>
+<table>
+  <tr><th>#</th><th>질문</th><th>현재 입장</th></tr>
+  <tr><td>1</td><td>공격하러 나간 영웅의 출발 거점이 같은 전투 단계에서 먼저 함락되면, 그 영웅이 싸우기 전에 후퇴·부상·포로 판정을 받는 게 맞는가?</td><td><span class="badge pending">사용자 확인 대기</span> 지금 동작을 유지합니다. 1a의 <code>out</code>과 같은 순서 의존입니다.</td></tr>
+  <tr><td>2</td><td>운영하던 거점을 잃고 후퇴한 영웅이 피난한 거점에서 운영 보정·경험치를 받는 게 맞는가?</td><td><span class="badge pending">사용자 확인 대기</span> 제안표 문구("경제 단계 시점에 서 있는 아군 거점")대로 동작합니다.</td></tr>
+  <tr><td>3</td><td>매치가 1a보다 길어진 것을 어떻게 다룰 것인가?</td><td><span class="badge muted">1d</span> 측정 슬라이스에서 수치로 조정합니다.</td></tr>
+</table>
+
+<h2>다음 Phase 권장</h2>
+<div class="card">
+  <p><strong>1b-2 계획</strong>: 시야 보고서(참모 입력을 전체 상태에서 시야 데이터로), 세팅 5종·프리셋, 제약·확정 순서, 조건부 명령. 첩보망 건물과 기동 능력치의 용도가 여기 들어갑니다. 그다음은 1b-3 외교 6종(포로 교환 포함)입니다.</p>
+  <p class="small">이 브랜치는 아직 main에 머지하지 않았습니다.</p>
+</div>
+
+</main>
+</body>
+</html>
