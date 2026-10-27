@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validatePlan } from "../src/orders";
-import type { GameState, Mission, Plan, Recruit } from "../src/types";
+import type { Build, BuildingKind, GameState, HeroStatus, Mission, Plan, Recruit } from "../src/types";
 import { heroOf, makeState } from "./helpers";
 
 function reasons(state: GameState, plan: Plan): string[] {
@@ -15,6 +15,10 @@ function recruitsOnly(...recruits: Recruit[]): Plan {
   return { missions: [], recruits, builds: [] };
 }
 
+function buildsOnly(...builds: Build[]): Plan {
+  return { missions: [], recruits: [], builds };
+}
+
 describe("validatePlan", () => {
   it("올바른 명령은 그대로 통과한다", () => {
     const state = makeState();
@@ -24,9 +28,13 @@ describe("validatePlan", () => {
         { kind: "move", hero: "s0h0", to: "f0", draw: 10 },
         { kind: "attack", hero: "s0h1", target: "m0" },
         { kind: "defend", hero: "s0h2" },
+        { kind: "govern", hero: "s0h3" },
       ],
       recruits: [{ node: "c0", amount: 30 }],
-      builds: [],
+      builds: [
+        { node: "c0", building: "production" },
+        { node: "f0", building: "walls" },
+      ],
     };
     const checked = validatePlan(state, 0, plan);
     expect(checked.issues).toEqual([]);
@@ -46,10 +54,10 @@ describe("validatePlan", () => {
     expect(reasons(makeState(), missionsOnly(mission))).toEqual([reason]);
   });
 
-  it("활동하지 않는 영웅의 임무를 뺀다", () => {
+  it.each<[HeroStatus]>([["out"], ["injured"], ["captured"]])("활동하지 않는 영웅의 임무를 뺀다: %s", (status) => {
     const state = makeState();
-    heroOf(state, "s0h0").status = "out";
-    expect(reasons(state, missionsOnly({ kind: "defend", hero: "s0h0" }))).toEqual(["hero not active"]);
+    heroOf(state, "s0h0").status = status;
+    expect(reasons(state, missionsOnly({ kind: "govern", hero: "s0h0" }))).toEqual(["hero not active"]);
   });
 
   it("아군 거점 공격을 뺀다", () => {
@@ -99,5 +107,39 @@ describe("validatePlan", () => {
     const checked = validatePlan(makeState(), 0, recruitsOnly({ node: "c0", amount: 20 }, { node: "c0", amount: 20 }));
     expect(checked.plan.recruits).toEqual([{ node: "c0", amount: 20 }]);
     expect(checked.issues).toEqual([{ item: "recruit", index: 1, reason: "over cap" }]);
+  });
+
+  it("병영 레벨당 모집 상한이 10 늘고, 병영이 있으면 농장에서도 모집한다", () => {
+    const state = makeState();
+    state.nodes.c0.buildings.barracks = 1;
+    state.nodes.f0.owner = 0;
+    state.nodes.f0.buildings.barracks = 1;
+    expect(reasons(state, recruitsOnly({ node: "c0", amount: 40 }, { node: "f0", amount: 10 }))).toEqual([]);
+    expect(reasons(state, recruitsOnly({ node: "c0", amount: 50 }))).toEqual(["over cap"]);
+    expect(reasons(state, recruitsOnly({ node: "f0", amount: 20 }))).toEqual(["over cap"]);
+  });
+
+  it.each<[string, Build, string]>([
+    ["없는 거점", { node: "zz", building: "walls" }, "unknown node"],
+    ["남의 거점", { node: "c1", building: "walls" }, "not own node"],
+    ["없는 건물", { node: "c0", building: "tower" as BuildingKind }, "unknown building"],
+  ])("잘못된 건설을 뺀다: %s", (_, build, reason) => {
+    expect(reasons(makeState(), buildsOnly(build))).toEqual([reason]);
+  });
+
+  it("최고 레벨(3) 건물은 더 짓지 못한다", () => {
+    const state = makeState();
+    state.nodes.c0.buildings.walls = 3;
+    expect(reasons(state, buildsOnly({ node: "c0", building: "walls" }))).toEqual(["max level"]);
+  });
+
+  it("한 거점에는 턴당 하나만 짓는다", () => {
+    const checked = validatePlan(
+      makeState(),
+      0,
+      buildsOnly({ node: "c0", building: "walls" }, { node: "c0", building: "production" }),
+    );
+    expect(checked.plan.builds).toEqual([{ node: "c0", building: "walls" }]);
+    expect(checked.issues).toEqual([{ item: "build", index: 1, reason: "one build per node" }]);
   });
 });

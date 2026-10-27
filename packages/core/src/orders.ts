@@ -1,6 +1,6 @@
-import { BALANCE, recruitCap } from "./data/balance";
+import { BALANCE, BUILDING_KINDS, recruitCap } from "./data/balance";
 import { neighbors } from "./map";
-import type { GameState, Mission, Plan, Recruit, SeatId } from "./types";
+import type { Build, GameState, Mission, NodeId, Plan, Recruit, SeatId } from "./types";
 
 export interface PlanIssue {
   item: "mission" | "recruit" | "build";
@@ -38,7 +38,18 @@ export function validatePlan(state: GameState, seat: SeatId, plan: Plan): Checke
       recruits.push(recruit);
     }
   });
-  return { plan: { missions, recruits, builds: [] }, issues };
+  const builds: Build[] = [];
+  const builtAt = new Set<NodeId>();
+  plan.builds.forEach((build, index) => {
+    const reason = buildIssue(state, seat, build, builtAt);
+    if (reason) {
+      issues.push({ item: "build", index, reason });
+    } else {
+      builtAt.add(build.node);
+      builds.push(build);
+    }
+  });
+  return { plan: { missions, recruits, builds }, issues };
 }
 
 function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: ReadonlySet<string>): string | null {
@@ -47,6 +58,7 @@ function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: Re
   if (hero.seat !== seat) return "not your hero";
   if (hero.status !== "active") return "hero not active";
   if (used.has(hero.id)) return "duplicate hero";
+  // 활동 중인 영웅은 늘 아군 거점에 서 있으므로 방어·운영에는 더 볼 것이 없다
   if (mission.kind === "defend" || mission.kind === "govern") return null;
   if (mission.draw !== undefined && (!Number.isInteger(mission.draw) || mission.draw < 0)) return "bad draw";
   const dest = mission.kind === "move" ? mission.to : mission.target;
@@ -66,5 +78,15 @@ function recruitIssue(state: GameState, seat: SeatId, recruit: Recruit, already:
   const unit = BALANCE.recruit.unit;
   if (!Number.isInteger(recruit.amount) || recruit.amount <= 0 || recruit.amount % unit !== 0) return "bad amount";
   if (already + recruit.amount > cap) return "over cap";
+  return null;
+}
+
+/** 건설은 거점마다 턴당 하나다 */
+function buildIssue(state: GameState, seat: SeatId, build: Build, builtAt: ReadonlySet<NodeId>): string | null {
+  if (!Object.hasOwn(state.nodes, build.node)) return "unknown node";
+  if (state.nodes[build.node].owner !== seat) return "not own node";
+  if (!BUILDING_KINDS.includes(build.building)) return "unknown building";
+  if (builtAt.has(build.node)) return "one build per node";
+  if (state.nodes[build.node].buildings[build.building] >= BALANCE.buildings.maxLevel) return "max level";
   return null;
 }
