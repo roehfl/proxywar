@@ -1,23 +1,27 @@
-import { BALANCE, recruitCap } from "../data/balance";
-import { bfs, compareText, neighbors } from "../map";
-import { defensePower, heroModifier, troopCap } from "../rules/power";
+import { BALANCE, buildCost, recruitCap } from "../data/balance";
+import { bfs, compareText, neighbors, nodeType } from "../map";
+import { attackModifier, defensePower, troopCap } from "../rules/power";
 import { ownedNodes, totalTroops } from "../summary";
-import type { GameState, Hero, Mission, NodeId, Plan, Recruit, SeatId } from "../types";
+import type { Build, GameState, Hero, Mission, NodeId, Plan, Recruit, SeatId } from "../types";
 import type { Staff } from "./types";
 
-/** 수도에 남겨 둘 수비대(1b에서 안전장치 세팅으로 바뀐다) */
+/** 수도에 남겨 둘 수비대(1b-2에서 안전장치 세팅으로 바뀐다) */
 const CAPITAL_RESERVE = 30;
 /** 추정 방어력의 이 배수를 넘을 때만 공격한다 */
 const ATTACK_MARGIN = 1.3;
 /** 모집 뒤 식량은 예상 유지비의 이 턴 수만큼 남긴다 */
 const FOOD_RESERVE_TURNS = 5;
+/** 건설 뒤에도 금을 수도 모집 한 턴 치(30명 = 15)만큼 남긴다 */
+const BUILD_GOLD_RESERVE = 15;
 
 export const ruleStaff: Staff = {
   plan: async ({ state, seat }) => rulePlan(state, seat),
 };
 
 export function rulePlan(state: GameState, seat: SeatId): Plan {
-  return { missions: planMissions(state, seat), recruits: planRecruits(state, seat), builds: [] };
+  const builds = planBuilds(state, seat);
+  const buildGold = builds.reduce((sum, b) => sum + buildCost(state.nodes[b.node].buildings[b.building] + 1).gold, 0);
+  return { missions: planMissions(state, seat), recruits: planRecruits(state, seat, buildGold), builds };
 }
 
 function reserveAt(state: GameState, seat: SeatId, node: NodeId): number {
@@ -91,7 +95,7 @@ function planMissions(state: GameState, seat: SeatId): Mission[] {
 
   // 1) 혼자 깰 수 있는 가장 약한 이웃을 공격한다
   for (const hero of heroes) {
-    const force = (hero.troops + drawFor(state, seat, hero, left)) * heroModifier(hero);
+    const force = (hero.troops + drawFor(state, seat, hero, left)) * attackModifier(hero);
     const target = attackTargets(state, seat, [hero.location], claimed).find((t) => force > t.def * ATTACK_MARGIN);
     if (!target) continue;
     claimed.add(target.node);
@@ -111,30 +115,62 @@ function planMissions(state: GameState, seat: SeatId): Mission[] {
       return h.troops + draw > 0;
     });
     if (group.length < 2) continue;
-    if (troops * Math.max(...group.map((h) => heroModifier(h))) <= target.def * ATTACK_MARGIN) continue;
+    if (troops * Math.max(...group.map((h) => attackModifier(h))) <= target.def * ATTACK_MARGIN) continue;
     claimed.add(target.node);
     for (const h of group) planned.set(h.id, { kind: "attack", hero: h.id, target: target.node, draw: takeDraw(h) });
   }
 
-  // 3) 나머지: 약하면 병력 있는 거점까지 돌아가고(전선이든 내부든), 아니면 전선으로 가거나 지킨다
+  // 3) 나머지: 약하면 병력 있는 거점까지 돌아간다(전선이든 내부든). 전선이면 지키고,
+  //    내부에서 채울 병력도 없이 약하면 거점을 운영하며, 아니면 전선으로 나간다(갈 전선이 없으면 운영)
   for (const hero of idle()) {
-    const back = regroupStep(state, seat, hero, drawFor(state, seat, hero, left));
+    const draw = drawFor(state, seat, hero, left);
+    const back = regroupStep(state, seat, hero, draw);
     if (back !== null) {
       planned.set(hero.id, { kind: "move", hero: hero.id, to: back, draw: 0 });
       continue;
     }
     const here = hero.location;
-    const step = isFrontier(state, seat, here) ? null : stepToward(state, seat, here, (n) => isFrontier(state, seat, n));
-    if (step === null) planned.set(hero.id, { kind: "defend", hero: hero.id });
+    if (isFrontier(state, seat, here)) {
+      planned.set(hero.id, { kind: "defend", hero: hero.id });
+      continue;
+    }
+    const weak = hero.troops + draw < troopCap(hero) / 2;
+    const step = weak ? null : stepToward(state, seat, here, (n) => isFrontier(state, seat, n));
+    if (step === null) planned.set(hero.id, { kind: "govern", hero: hero.id });
     else planned.set(hero.id, { kind: "move", hero: hero.id, to: step, draw: takeDraw(hero) });
   }
   return heroes.map((h) => planned.get(h.id)!);
 }
 
-function planRecruits(state: GameState, seat: SeatId): Recruit[] {
+/**
+ * 턴당 최대 1건: 현재 수도 생산 → 아군 농장·광산 생산(id 순) → 현재 수도 성벽 → 현재 수도 병영 중
+ * 최고 레벨이 아니고 자재가 되며 짓고 나서 금이 BUILD_GOLD_RESERVE 이상 남는 첫 후보.
+ */
+function planBuilds(state: GameState, seat: SeatId): Build[] {
+  const capital = state.seats[seat].capital;
+  if (capital === null) return [];
+  const { gold, material } = state.seats[seat].treasury;
+  const resourceNodes = ownedNodes(state, seat).filter((n) => ["farm", "mine"].includes(nodeType(state.map, n)));
+  const candidates: Build[] = [
+    { node: capital, building: "production" },
+    ...resourceNodes.map((node): Build => ({ node, building: "production" })),
+    { node: capital, building: "walls" },
+    { node: capital, building: "barracks" },
+  ];
+  const pick = candidates.find((c) => {
+    const level = state.nodes[c.node].buildings[c.building] + 1;
+    if (level > BALANCE.buildings.maxLevel) return false;
+    const cost = buildCost(level);
+    return material >= cost.material && gold - cost.gold >= BUILD_GOLD_RESERVE;
+  });
+  return pick ? [pick] : [];
+}
+
+/** buildGold는 같은 계획의 건설에 먼저 쓴 금 */
+function planRecruits(state: GameState, seat: SeatId, buildGold: number): Recruit[] {
   const { gold, food } = state.seats[seat].treasury;
   const { unit, costPerUnit } = BALANCE.recruit;
-  let spentGold = 0;
+  let spentGold = buildGold;
   let spentFood = 0;
   let troops = totalTroops(state, seat);
   const recruits: Recruit[] = [];

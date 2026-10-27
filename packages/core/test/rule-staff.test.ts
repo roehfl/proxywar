@@ -52,6 +52,38 @@ describe("rulePlan", () => {
     expect(rulePlan(makeState(), 0).recruits).toEqual([{ node: "c0", amount: 30 }]);
   });
 
+  it("전선이 아닌 거점에서 채울 병력도 없는 영웅은 거점을 운영한다", () => {
+    const state = makeState();
+    for (const n of ["f0", "m0"]) Object.assign(state.nodes[n], { owner: 0, garrison: 0 });
+    const plan = rulePlan(state, 0);
+    expect(validatePlan(state, 0, plan).issues).toEqual([]);
+    expect(plan.missions.map((m) => m.kind)).toEqual(["govern", "govern", "govern", "govern", "govern"]);
+  });
+
+  it("자재가 되면 수도 생산 건물을 먼저 짓고 남은 금으로 모집한다", () => {
+    const state = makeState();
+    state.seats[0].treasury.material = 30;
+    const plan = rulePlan(state, 0);
+    expect(plan.builds).toEqual([{ node: "c0", building: "production" }]);
+    expect(plan.recruits).toEqual([{ node: "c0", amount: 30 }]);
+  });
+
+  it("짓고 나면 금이 15 아래로 떨어질 때는 짓지 않는다", () => {
+    const state = makeState();
+    Object.assign(state.seats[0].treasury, { gold: 30, material: 30 });
+    expect(rulePlan(state, 0).builds).toEqual([]);
+  });
+
+  it("수도 생산이 최고 레벨이면 아군 농장·광산 생산, 그것도 다 차면 수도 성벽을 짓는다", () => {
+    const state = makeState();
+    Object.assign(state.seats[0].treasury, { gold: 200, material: 200 });
+    state.nodes.c0.buildings.production = 3;
+    state.nodes.f0.owner = 0;
+    expect(rulePlan(state, 0).builds).toEqual([{ node: "f0", building: "production" }]);
+    state.nodes.f0.buildings.production = 3;
+    expect(rulePlan(state, 0).builds).toEqual([{ node: "c0", building: "walls" }]);
+  });
+
   it("ruleStaff는 rulePlan과 같은 계획을 비동기로 낸다", async () => {
     const state = makeState();
     expect(await ruleStaff.plan({ state, seat: 2 })).toEqual(rulePlan(state, 2));
