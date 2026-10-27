@@ -120,7 +120,7 @@ describe("processTurn", () => {
 
   it("탈락한 자리가 잡고 있던 포로는 풀려나 자기 수도로 돌아간다", () => {
     const state = makeState();
-    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0 });
+    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0, location: "x0" });
     state.nodes.m0.owner = 5;
     state.nodes.m0.garrison = 0;
     Object.assign(heroOf(state, "s5h0"), { location: "m0", troops: 500 });

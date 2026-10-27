@@ -62,10 +62,15 @@ describe("rulePlan", () => {
 
   it("자재가 되면 수도 생산 건물을 먼저 짓고 남은 금으로 모집한다", () => {
     const state = makeState();
-    state.seats[0].treasury.material = 30;
+    Object.assign(state.seats[0].treasury, { gold: 40, food: 200, material: 30 });
+    state.nodes.i1.owner = 0;
     const plan = rulePlan(state, 0);
     expect(plan.builds).toEqual([{ node: "c0", building: "production" }]);
-    expect(plan.recruits).toEqual([{ node: "c0", amount: 30 }]);
+    // 금 40 − 건설 20 = 20으로 4단위(수도 30 + 도시 10). 건설 금을 빼지 않으면 도시가 20이 된다
+    expect(plan.recruits).toEqual([
+      { node: "c0", amount: 30 },
+      { node: "i1", amount: 10 },
+    ]);
   });
 
   it("짓고 나면 금이 15 아래로 떨어질 때는 짓지 않는다", () => {
