@@ -1,8 +1,11 @@
-import { BALANCE, terrainOf } from "../data/balance";
+import { BALANCE, BUILDING_KINDS, terrainOf } from "../data/balance";
 import { compareText, neighbors } from "../map";
 import type { Rng } from "../rng";
 import type { GameEvent, GameState, Hero, Mission, NodeId, NodeState, Resources, SeatId } from "../types";
-import { attackPower, bestHero, defenders, heroModifier, sumTroops } from "./power";
+import { gainExp } from "./growth";
+import { rollInjury, routHero } from "./heroes";
+import { attackPower, bestHero, defensePower, defenders, heroModifier, sumTroops } from "./power";
+import { cautionRatio } from "./traits";
 
 /** troops에서 fraction만큼(올림) 잃는 수 */
 function lose(troops: number, fraction: number): number {
@@ -27,10 +30,13 @@ export function resolveCombat(
   events: GameEvent[],
 ): void {
   const groups = new Map<string, Hero[]>();
+  /** 공격에 나섰거나 운영 중이라 서 있는 거점 방어에 끼지 않는 영웅 */
   const committed = new Set<string>();
   for (const hero of state.heroes) {
     const mission = missions.get(hero.id);
-    if (!mission || mission.kind !== "attack" || hero.status !== "active") continue;
+    if (!mission || hero.status !== "active") continue;
+    if (mission.kind === "govern") committed.add(hero.id);
+    if (mission.kind !== "attack") continue;
     const key = `${hero.seat}|${mission.target}`;
     groups.set(key, [...(groups.get(key) ?? []), hero]);
     committed.add(hero.id);
@@ -51,20 +57,19 @@ function resolveAttack(
   events: GameEvent[],
 ): void {
   const node = state.nodes[target];
-  const attackers = group.filter(
+  const ready = group.filter(
     (h) => h.status === "active" && h.troops > 0 && neighbors(state.map, h.location).includes(target),
   );
-  if (attackers.length === 0 || node.owner === seat) return;
+  if (ready.length === 0 || node.owner === seat) return;
+  const attackers = withoutHesitant(state, seat, target, ready, committed, events);
+  if (attackers.length === 0) return;
   const defHeroes = defenders(state, target, committed);
   const attackTroops = sumTroops(attackers);
   const defendTroops = node.garrison + sumTroops(defHeroes);
   const spread = BALANCE.combat.randomSpread;
   const aPow = attackPower(attackers) * rng.range(1 - spread, 1 + spread);
   const dPow =
-    defendTroops *
-    heroModifier(bestHero(defHeroes)) *
-    terrainOf(state, target) *
-    rng.range(1 - spread, 1 + spread);
+    defendTroops * heroModifier(bestHero(defHeroes)) * terrainOf(state, target) * rng.range(1 - spread, 1 + spread);
   const battle = {
     kind: "battle" as const,
     node: target,
@@ -80,11 +85,12 @@ function resolveAttack(
     const attackerLoss = shrinkHeroes(attackers, (dPow / aPow) * BALANCE.combat.winnerLossFactor);
     const event = { ...battle, winner: "attacker" as const, attackerLoss, defenderLoss: 0 };
     events.push(event);
-    capture(state, target, seat, attackers, events);
+    awardExp(attackers, defHeroes);
+    const kept = capture(state, target, seat, attackers, rng, events);
     // 점령한 영웅은 이제 그 거점의 방어자다(출발 거점에서만 빠진다)
     for (const hero of attackers) committed.delete(hero.id);
     // 방어 영웅은 후퇴하며 병력 일부를 지키므로 그만큼은 손실이 아니다
-    event.defenderLoss = defendTroops - sumTroops(defHeroes);
+    event.defenderLoss = defendTroops - defHeroes.reduce((sum, h) => sum + (kept.get(h.id) ?? 0), 0);
   } else {
     const fraction = (aPow / dPow) * BALANCE.combat.winnerLossFactor;
     const garrisonLoss = lose(node.garrison, fraction);
@@ -92,34 +98,60 @@ function resolveAttack(
     const defenderLoss = garrisonLoss + shrinkHeroes(defHeroes, fraction);
     const attackerLoss = shrinkHeroes(attackers, BALANCE.combat.loserAttackerLossFactor);
     events.push({ ...battle, winner: "defender", attackerLoss, defenderLoss });
+    awardExp(defHeroes, attackers);
+    for (const hero of attackers) rollInjury(state, hero, rng, events);
   }
 }
 
-function capture(state: GameState, target: NodeId, seat: SeatId, attackers: readonly Hero[], events: GameEvent[]): void {
+/** 신중 판정: 무작위 폭을 뺀 부대 공격력이 방어력 × 기준보다 낮으면 그 영웅은 물러나 제자리를 지킨다. */
+function withoutHesitant(
+  state: GameState,
+  seat: SeatId,
+  target: NodeId,
+  ready: readonly Hero[],
+  committed: Set<string>,
+  events: GameEvent[],
+): Hero[] {
+  const power = attackPower(ready);
+  const def = defensePower(state, target, committed);
+  return ready.filter((hero) => {
+    const ratio = cautionRatio(hero);
+    if (ratio === 0 || power >= def * ratio) return true;
+    committed.delete(hero.id);
+    events.push({ kind: "hesitated", seat, hero: hero.id, node: target });
+    return false;
+  });
+}
+
+function awardExp(winners: readonly Hero[], losers: readonly Hero[]): void {
+  for (const hero of [...winners, ...losers]) gainExp(hero, BALANCE.exp.battle);
+  for (const hero of winners) gainExp(hero, BALANCE.exp.victory);
+}
+
+/** 점령: 건물 손상, 그 거점에 있던 남의 영웅(활동·부상) 후퇴·포로, 수도 이전. 후퇴한 영웅별로 지킨 병력을 돌려준다. */
+function capture(
+  state: GameState,
+  target: NodeId,
+  seat: SeatId,
+  attackers: readonly Hero[],
+  rng: Rng,
+  events: GameEvent[],
+): Map<string, number> {
   const node = state.nodes[target];
   const from = node.owner;
   node.owner = seat;
   node.garrison = 0;
+  for (const kind of BUILDING_KINDS) node.buildings[kind] = Math.max(0, node.buildings[kind] - 1);
+  const kept = new Map<string, number>();
   for (const hero of state.heroes) {
-    if (hero.status === "active" && hero.location === target && hero.seat !== seat) routHero(state, hero, events);
+    if (hero.status !== "active" && hero.status !== "injured") continue;
+    if (hero.location !== target || hero.seat === seat) continue;
+    kept.set(hero.id, routHero(state, hero, seat, rng, events));
   }
   for (const hero of attackers) hero.location = target;
   events.push({ kind: "captured", node: target, from, to: seat });
   if (from !== null && state.seats[from].capital === target) moveCapital(state, from, target, events);
-}
-
-function routHero(state: GameState, hero: Hero, events: GameEvent[]): void {
-  const refuge: NodeId | undefined = neighbors(state.map, hero.location)
-    .filter((n) => state.nodes[n].owner === hero.seat)
-    .sort(compareText)[0];
-  if (refuge === undefined) {
-    hero.status = "out";
-    hero.troops = 0;
-  } else {
-    hero.location = refuge;
-    hero.troops = Math.floor((hero.troops * BALANCE.combat.routedKeepPercent) / 100);
-  }
-  events.push({ kind: "heroRouted", seat: hero.seat, hero: hero.id, to: refuge ?? null, troops: hero.troops });
+  return kept;
 }
 
 function moveCapital(state: GameState, seat: SeatId, from: NodeId, events: GameEvent[]): void {
