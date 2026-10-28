@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setRelation } from "../src/relations";
 import { resolveConditions } from "../src/rules/conditions";
 import { processTurn } from "../src/rules/turn";
 import type { Condition, GameEvent, Mission } from "../src/types";
@@ -38,6 +39,23 @@ describe("resolveConditions", () => {
     resolveConditions(state, missions, events);
     expect(events).toEqual([]);
     expect(missions.get("s0h0")).toEqual(entry[1]);
+    expect(heroOf(state, "s0h0").location).toBe("f0");
+  });
+
+  it("동맹 영웅은 적 접근으로 보지 않는다", () => {
+    const state = makeState();
+    setRelation(state, 0, 5, "alliance");
+    state.nodes.f0.owner = 0;
+    state.nodes.x5.owner = 5;
+    Object.assign(heroOf(state, "s0h0"), { location: "f0", troops: 50 });
+    Object.assign(heroOf(state, "s5h0"), { location: "x5", troops: 30 });
+    const events: GameEvent[] = [];
+    resolveConditions(
+      state,
+      new Map([defendWhen("s0h0", { trigger: { kind: "enemyNear" }, react: { kind: "retreat" } })]),
+      events,
+    );
+    expect(events).toEqual([]);
     expect(heroOf(state, "s0h0").location).toBe("f0");
   });
 

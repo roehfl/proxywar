@@ -47,7 +47,7 @@ export interface TurnRecord {
 }
 
 export interface MatchRecord {
-  version: 3;
+  version: 4;
   config: RunConfig;
   initialState: GameState;
   turns: TurnRecord[];
@@ -106,5 +106,5 @@ export async function runMatch(config: RunConfig, staffs: readonly Staff[]): Pro
     });
     state = next;
   }
-  return { version: 3, config, initialState, turns, result: state.ended! };
+  return { version: 4, config, initialState, turns, result: state.ended! };
 }

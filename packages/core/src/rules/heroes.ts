@@ -55,19 +55,23 @@ export function recoverHeroes(state: GameState, events: GameEvent[]): void {
   }
 }
 
-/** captor가 잡고 있던 포로를 풀어 각자의 현재 수도로 보낸다. 수도가 없으면 out. */
+/** captor가 잡고 있던 포로를 모두 푼다. */
 export function releasePrisoners(state: GameState, captor: SeatId, events: GameEvent[]): void {
   for (const hero of state.heroes) {
-    if (hero.status !== "captured" || hero.captor !== captor) continue;
-    const home = state.seats[hero.seat].capital;
-    hero.captor = null;
-    hero.troops = 0;
-    if (home === null) {
-      hero.status = "out";
-    } else {
-      hero.status = "active";
-      hero.location = home;
-    }
-    events.push({ kind: "heroReleased", seat: hero.seat, hero: hero.id, to: home });
+    if (hero.status === "captured" && hero.captor === captor) freeHero(state, hero, events);
   }
+}
+
+/** 포로를 풀어 자기 자리의 현재 수도로 보낸다(활동, 병력 0). 수도가 없으면 out. */
+export function freeHero(state: GameState, hero: Hero, events: GameEvent[]): void {
+  const home = state.seats[hero.seat].capital;
+  hero.captor = null;
+  hero.troops = 0;
+  if (home === null) {
+    hero.status = "out";
+  } else {
+    hero.status = "active";
+    hero.location = home;
+  }
+  events.push({ kind: "heroReleased", seat: hero.seat, hero: hero.id, to: home });
 }

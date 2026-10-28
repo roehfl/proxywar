@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { setRelation } from "../src/relations";
 import { defensePower } from "../src/rules/power";
-import type { HeroStatus } from "../src/types";
+import type { HeroStatus, PendingOffer } from "../src/types";
 import { boardOf, viewOf, visibleNodes } from "../src/view";
 import { heroOf, makeState } from "./helpers";
 
@@ -73,6 +74,37 @@ describe("viewOf", () => {
     Object.assign(heroOf(state, "s2h0"), { status: "captured", captor: 0, location: "c2" });
     Object.assign(heroOf(state, "s3h0"), { status: "captured", captor: 1, location: "f0" });
     expect(viewOf(state, 0).foreignHeroes.map((h) => h.id)).toEqual(["s2h0"]);
+  });
+
+  it("동맹의 시야를 함께 보고(동맹의 동맹은 아님), 동맹 영웅은 남의 영웅처럼 숨긴다", () => {
+    const state = makeState();
+    setRelation(state, 0, 1, "alliance");
+    setRelation(state, 1, 2, "alliance");
+    const view = viewOf(state, 0);
+    expect(Object.keys(view.nodes)).toEqual(["c0", "c1", "f0", "f1", "m0", "m1"]);
+    expect(view.foreignHeroes.map((h) => h.id)).toEqual(["s1h0", "s1h1", "s1h2", "s1h3", "s1h4"]);
+    expect(view.foreignHeroes[0]).not.toHaveProperty("traits");
+  });
+
+  it("관계·대기 제안·약속 기록이 시야에 들어간다", () => {
+    const state = makeState();
+    setRelation(state, 0, 2, "nonAggression", 30);
+    setRelation(state, 0, 3, "war");
+    const incoming: PendingOffer = { kind: "alliance", to: 0, id: "4-1-0", from: 1 };
+    const outgoing: PendingOffer = { kind: "nonAggression", to: 4, turns: 12, id: "4-0-0", from: 0 };
+    state.diplomacy.pending.push(incoming, outgoing, { kind: "alliance", to: 3, id: "4-2-0", from: 2 });
+    state.diplomacy.promises.push({ turn: 3, kind: "formed", treaty: "nonAggression", seats: [0, 2] });
+    const view = viewOf(state, 0);
+    expect(view.relations).toEqual([
+      { seat: 1, kind: "neutral", until: null },
+      { seat: 2, kind: "nonAggression", until: 30 },
+      { seat: 3, kind: "war", until: null },
+      { seat: 4, kind: "neutral", until: null },
+      { seat: 5, kind: "neutral", until: null },
+    ]);
+    expect(view.incoming).toEqual([incoming]);
+    expect(view.outgoing).toEqual([outgoing]);
+    expect(view.promises).toEqual(state.diplomacy.promises);
   });
 
   it("시야는 복사본이라 고쳐도 상태가 바뀌지 않는다", () => {

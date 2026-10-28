@@ -1,5 +1,6 @@
 import { BALANCE } from "../data/balance";
 import { bfs, compareText, neighbors } from "../map";
+import { allied } from "../relations";
 import type { Condition, GameEvent, GameState, Hero, Mission, NodeId } from "../types";
 import { attackPower, defenders, defensePower } from "./power";
 
@@ -43,8 +44,16 @@ function triggered(
   const trigger = when.trigger;
   switch (trigger.kind) {
     case "enemyNear":
+      // 동맹(턴 시작 관계)의 영웅은 적으로 세지 않는다
       return neighbors(state.map, hero.location).some((n) =>
-        state.heroes.some((h) => h.seat !== hero.seat && h.status === "active" && h.troops > 0 && h.location === n),
+        state.heroes.some(
+          (h) =>
+            h.seat !== hero.seat &&
+            !allied(state, h.seat, hero.seat) &&
+            h.status === "active" &&
+            h.troops > 0 &&
+            h.location === n,
+        ),
       );
     case "targetEmpty": {
       const node = trigger.node ?? (mission.kind === "attack" ? mission.target : null);

@@ -1,9 +1,10 @@
 import { BALANCE } from "./data/balance";
 import { bfs, compareText } from "./map";
+import { allied } from "./relations";
 import { troopCap } from "./rules/power";
 import type { GameState, Hero, Mission, NodeId, Plan, SeatId } from "./types";
 
-export type ConstraintRule = "guardCapital" | "expedition" | "capitalMin";
+export type ConstraintRule = "guardCapital" | "expedition" | "noAllyAttack" | "capitalMin";
 
 /** 제약이 고친 임무 하나 */
 export interface Correction {
@@ -22,8 +23,9 @@ type Fix = (before: Mission, rule: ConstraintRule, after: Mission) => Mission;
 
 /**
  * 확정: 검증을 통과한 계획에 제약(상시 명령 + 안전장치)을 적용한다. 직접 수정(사람 조작)은 1b에서 비어 있다.
- * 수도 방어 전담 → 원정 불허가 임무 종류를, 그 뒤 수도 최소 수비가 수도에서 꺼내는 병력을 고친다.
+ * 수도 방어 전담 → 원정 불허 → 동맹 공격 금지가 임무 종류를, 그 뒤 수도 최소 수비가 수도에서 꺼내는 병력을 고친다.
  * "현재 수도"는 확정 시점의 수도다. 꺼내기는 전투 앞 이동 단계에서 일어나 그 사이에 수도가 바뀌지 않는다.
+ * 동맹은 확정 시점의 관계다. 같은 계획의 파기는 그 턴 외교 정산에서 효력이 생기므로 이번 턴 공격은 막힌다.
  * 후퇴 기준은 여기서 고치지 않고 전투의 물러남 판정에서 강제한다.
  */
 export function confirmPlan(state: GameState, seat: SeatId, plan: Plan): ConfirmedPlan {
@@ -37,6 +39,11 @@ export function confirmPlan(state: GameState, seat: SeatId, plan: Plan): Confirm
   const ownDist = bfs(state.map, capital, (n) => state.nodes[n].owner === seat).dist;
   const mapDist = bfs(state.map, capital).dist;
   const far = (node: NodeId): boolean => (mapDist[node] ?? Infinity) > BALANCE.constraints.expeditionRange;
+  const noAllyAttack = state.seats[seat].settings.safeguards.noAllyAttack;
+  const allyNode = (node: NodeId): boolean => {
+    const owner = state.nodes[node].owner;
+    return owner !== null && allied(state, seat, owner);
+  };
   const missions = plan.missions.map((mission) => {
     const hero = heroById(state, mission.hero);
     let m = mission;
@@ -54,6 +61,14 @@ export function confirmPlan(state: GameState, seat: SeatId, plan: Plan): Confirm
         m = fix(m, "expedition", { kind: "defend", hero: m.hero });
       } else if (react !== undefined && (react.kind === "advance" || react.kind === "reinforce") && far(react.node)) {
         m = fix(m, "expedition", withoutCondition(m));
+      }
+    }
+    if (noAllyAttack) {
+      const react = m.when?.react;
+      if (m.kind === "attack" && allyNode(m.target)) {
+        m = fix(m, "noAllyAttack", { kind: "defend", hero: m.hero });
+      } else if (react?.kind === "advance" && allyNode(react.node)) {
+        m = fix(m, "noAllyAttack", withoutCondition(m));
       }
     }
     return m;

@@ -1,5 +1,6 @@
 import { BALANCE, BUILDING_KINDS, terrainOf } from "../data/balance";
 import { compareText, neighbors } from "../map";
+import { allied, relationOf } from "../relations";
 import type { Rng } from "../rng";
 import type { GameEvent, GameState, Hero, Mission, NodeId, NodeState, Resources, SeatId } from "../types";
 import { gainExp } from "./growth";
@@ -27,6 +28,7 @@ function shrinkHeroes(heroes: readonly Hero[], fraction: number): number {
  * 아직 정산되지 않은 공격 영웅은 출발 거점이 먼저 함락돼도 그 자리에서 후퇴하지 않고 자기 공격을 치른다.
  * 진 공격 영웅의 후퇴·부상 판정과, 공격하지 못한 채 남의 거점에 서 있게 된 영웅(신중 후퇴, 병력 없음, 목표가 이미 아군이 됨)의
  * 후퇴 판정은 끝에 한 번 한다.
+ * 목표가 이번 단계에서 불가침·동맹 상대에게 넘어갔으면 그 공격은 일어나지 않는다(기습은 턴 시작에 상대 것이던 거점을 칠 때만).
  * 그래서 결과가 정산 순서에 따라 갈리지 않는다.
  */
 export function resolveCombat(
@@ -35,6 +37,8 @@ export function resolveCombat(
   rng: Rng,
   events: GameEvent[],
 ): void {
+  /** 턴 시작의 거점 주인(주인은 전투 단계에서만 바뀐다) */
+  const startOwners = Object.fromEntries(Object.values(state.nodes).map((n) => [n.id, n.owner]));
   const groups = new Map<string, Hero[]>();
   /** 공격에 나섰거나 운영 중이라 서 있는 거점 방어에 끼지 않는 영웅 */
   const committed = new Set<string>();
@@ -54,7 +58,13 @@ export function resolveCombat(
   }
   for (const key of rng.shuffle([...groups.keys()].sort(compareText))) {
     const [seatText, target] = key.split("|");
-    resolveAttack(state, Number(seatText), target, groups.get(key)!, committed, unresolved, lost, rng, events);
+    const seat = Number(seatText);
+    const owner = state.nodes[target].owner;
+    if (owner !== null && owner !== seat && owner !== startOwners[target] && atPeace(state, seat, owner)) {
+      for (const hero of groups.get(key)!) unresolved.delete(hero.id);
+      continue;
+    }
+    resolveAttack(state, seat, target, groups.get(key)!, committed, unresolved, lost, rng, events);
   }
   settleAfterCombat(state, lost, rng, events);
   restoreCapitals(state, events);
@@ -120,14 +130,17 @@ function resolveAttack(
 }
 
 /**
- * 전투 단계 끝: 남의 거점에 서 있는 영웅(활동·부상)은 그 거점 주인에게서 후퇴하거나 포로가 되고
- * (활동이면 부상 판정 포함), 아군 거점에 남은 진 공격 영웅은 부상 판정을 받는다.
+ * 전투 단계 끝: 남의 거점(동맹 거점 제외)에 서 있는 영웅(활동·부상)은 그 거점 주인에게서 후퇴하거나 포로가 되고
+ * (활동이면 부상 판정 포함), 아군·동맹 거점에 남은 진 공격 영웅은 부상 판정을 받는다.
+ * 관계는 외교 정산에서만 바뀌므로 여기서는 턴 시작의 관계다.
  */
 function settleAfterCombat(state: GameState, lost: ReadonlySet<string>, rng: Rng, events: GameEvent[]): void {
   for (const hero of state.heroes) {
     if (hero.status !== "active" && hero.status !== "injured") continue;
     const owner = state.nodes[hero.location].owner;
-    if (owner !== null && owner !== hero.seat) routHero(state, hero, owner, rng, events);
+    if (owner !== null && owner !== hero.seat && !allied(state, owner, hero.seat)) {
+      routHero(state, hero, owner, rng, events);
+    }
     else if (lost.has(hero.id) && hero.status === "active") rollInjury(state, hero, rng, events);
   }
 }
@@ -222,4 +235,9 @@ function moveCapital(state: GameState, seat: SeatId, from: NodeId, events: GameE
   t.rare -= lost.rare;
   seatState.capital = pickCapital(state, seat);
   events.push({ kind: "capitalMoved", seat, from, to: seatState.capital, lost });
+}
+
+function atPeace(state: GameState, x: SeatId, y: SeatId): boolean {
+  const kind = relationOf(state, x, y).kind;
+  return kind === "nonAggression" || kind === "alliance";
 }

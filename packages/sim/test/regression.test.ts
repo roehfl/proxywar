@@ -8,8 +8,11 @@ const raw = JSON.parse(readFileSync(new URL("../configs/rule6.json", import.meta
 
 /**
  * 1b-1 코드(커밋 d86127b)로 뽑은 rule6 시드 1~8의 결과. hash는 턴별 [사건, 지표]의 sha256 앞 16자다.
- * 세팅을 주지 않은 매치(balanced, 수도 최소 수비 3, 상시 명령 없음)는 1b-2에서도 이 매치를 그대로 만든다.
+ * 세팅을 주지 않은 매치(balanced, 수도 최소 수비 3, 상시 명령 없음)는 1b-2·1b-3에서도 이 매치를 그대로 만든다.
+ * 1b-3의 외교 사건(전투가 부르는 전쟁 같은)은 매치를 바꾸지 않으므로 해시에서 뺀다.
  */
+const DIPLOMACY_EVENTS = new Set(["proposalDelivered", "proposalSettled", "relationChanged", "promise", "heroReturned"]);
+
 const EXPECTED = [
   { seed: 1, reason: "turnLimit", turns: 120, winner: 5, ranking: [5, 3, 2, 0, 4, 1], hash: "5ab5d5c823266791" },
   { seed: 2, reason: "earlyVictory", turns: 91, winner: 0, ranking: [0, 3, 5, 1, 4, 2], hash: "20e62617477b02bc" },
@@ -35,7 +38,9 @@ describe("기본 세팅 회귀", () => {
       ranking: record.result.ranking,
     }).toEqual(result);
     const digest = createHash("sha256")
-      .update(JSON.stringify(record.turns.map((t) => [t.events, t.metrics])))
+      .update(
+        JSON.stringify(record.turns.map((t) => [t.events.filter((e) => !DIPLOMACY_EVENTS.has(e.kind)), t.metrics])),
+      )
       .digest("hex")
       .slice(0, 16);
     expect(digest).toBe(hash);

@@ -67,6 +67,7 @@ export function initState(setup: MatchSetup): GameState {
     seats,
     heroes,
     majority: { seat: null, streak: 0 },
+    diplomacy: { relations: [], pending: [], promises: [] },
     ended: null,
   };
 }

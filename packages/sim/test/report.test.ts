@@ -4,10 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { parseRunConfig } from "../src/config";
 import { renderReport } from "../src/report";
 import { runCommand } from "../src/run-command";
+import { runMatch, staffFor } from "../src/runner";
 
 const configPath = fileURLToPath(new URL("../configs/rule6.json", import.meta.url));
+const presetsPath = fileURLToPath(new URL("../configs/rule6-presets.json", import.meta.url));
 
 describe("run 명령과 보고서", () => {
   it("match.json과 report.md를 쓰고 보고서에 순위·추이·사건·무효 명령이 들어간다", async () => {
@@ -33,8 +36,17 @@ describe("run 명령과 보고서", () => {
         "| 자리 | 레벨업 | 부상 | 포로로 잡힘 | 명령 불복 | 신중 후퇴 | 후퇴 기준 | 조건 발동 | 건설 | 확정 수정 |",
       );
       expect(md).toContain("## 무효 명령\n\n없음");
+      expect(md).toContain("### 약속 기록\n\n없음");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it("외교 절에 자리별 제안 결과·약속 기록·마지막 관계가 들어간다", async () => {
+    const config = parseRunConfig(JSON.parse(readFileSync(presetsPath, "utf8")));
+    const md = renderReport(await runMatch(config, config.seats.map((s) => staffFor(s.staff))));
+    expect(md).toContain("## 외교\n\n| 자리 | 제안 | 수락됨 | 거절됨 | 만료 | 무효 | 실패 | 깬 약속 |");
+    expect(md).toContain("불가침 성립:");
+    expect(md).toContain("### 마지막 관계\n\n| 쌍 | 관계 |");
   });
 });

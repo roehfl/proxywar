@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setRelation } from "../src/relations";
 import { createRng } from "../src/rng";
 import { resolveCombat } from "../src/rules/combat";
 import type { GameEvent, Mission } from "../src/types";
@@ -354,6 +355,54 @@ describe("resolveCombat", () => {
       }
     }
     expect(hesitatedFirst).toBeGreaterThan(0);
+  });
+
+  it("동맹 거점에 서 있는 영웅은 전투 단계 끝에 후퇴하지 않고, 동맹이 아니면 후퇴한다", () => {
+    const allied = makeState();
+    setRelation(allied, 0, 1, "alliance");
+    allied.nodes.f0.owner = 1;
+    Object.assign(heroOf(allied, "s0h0"), { location: "f0", troops: 20 });
+    expect(run(allied)).toEqual([]);
+    expect(heroOf(allied, "s0h0")).toMatchObject({ location: "f0", troops: 20 });
+
+    const neutral = makeState();
+    neutral.nodes.f0.owner = 1;
+    Object.assign(heroOf(neutral, "s0h0"), { location: "f0", troops: 20 });
+    run(neutral);
+    expect(heroOf(neutral, "s0h0").location).toBe("c0");
+  });
+
+  it("동맹 영웅은 서 있는 동맹 거점 방어에 끼지 않고, 함락되면 이웃 아군 거점으로 후퇴한다", () => {
+    const state = makeState();
+    setRelation(state, 0, 1, "alliance");
+    Object.assign(state.nodes.f0, { owner: 1, garrison: 10 });
+    Object.assign(heroOf(state, "s0h0"), { location: "f0", troops: 50 });
+    state.nodes.x5.owner = 5;
+    Object.assign(heroOf(state, "s5h0"), { location: "x5", troops: 100 });
+    const events = run(state, attack("s5h0", "f0"));
+    expect(events[0]).toMatchObject({ kind: "battle", node: "f0", defender: 1, defendTroops: 10, winner: "attacker" });
+    expect(events).toContainEqual({ kind: "heroRouted", seat: 0, hero: "s0h0", to: "c0", troops: 20 });
+    expect(state.nodes.f0.owner).toBe(5);
+  });
+
+  it("같은 목표를 동맹이 먼저 점령하면 뒤의 공격은 일어나지 않는다(어느 정산 순서에서도)", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const state = makeState();
+      setRelation(state, 0, 1, "alliance");
+      state.nodes.m0.owner = 0;
+      state.nodes.f1.owner = 1;
+      Object.assign(state.nodes.x0, { owner: 5, garrison: 0 });
+      Object.assign(heroOf(state, "s0h0"), { location: "m0", troops: 50 });
+      Object.assign(heroOf(state, "s1h0"), { location: "f1", troops: 50 });
+      const events: GameEvent[] = [];
+      const missions = new Map([attack("s0h0", "x0"), attack("s1h0", "x0")]);
+      resolveCombat(state, missions, createRng(seed, "test"), events);
+      const battles = events.filter((e) => e.kind === "battle");
+      expect(battles).toHaveLength(1);
+      expect(battles[0]).toMatchObject({ node: "x0", defender: 5, winner: "attacker" });
+      const loser = state.nodes.x0.owner === 0 ? "s1h0" : "s0h0";
+      expect(heroOf(state, loser)).toMatchObject({ location: loser === "s0h0" ? "m0" : "f1", troops: 50 });
+    }
   });
 
   it("점령된 거점의 건물은 종류마다 한 레벨씩 내려간다", () => {

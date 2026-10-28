@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setRelation } from "../src/relations";
 import { resolveMovement } from "../src/rules/movement";
 import type { GameEvent, Mission } from "../src/types";
 import { heroOf, makeState } from "./helpers";
@@ -24,6 +25,18 @@ describe("resolveMovement", () => {
     resolveMovement(state, new Map<string, Mission>([["s0h0", { kind: "attack", hero: "s0h0", target: "f0", draw: 1000 }]]), []);
     expect(heroOf(state, "s0h0")).toMatchObject({ location: "c0", troops: 140 });
     expect(state.nodes.c0.garrison).toBe(360);
+  });
+
+  it("동맹 거점에 선 영웅은 그 수비대에서 병력을 꺼내지 않는다", () => {
+    const state = makeState();
+    setRelation(state, 0, 1, "alliance");
+    Object.assign(state.nodes.f0, { owner: 1, garrison: 40 });
+    Object.assign(heroOf(state, "s0h0"), { location: "f0", troops: 10 });
+    const events: GameEvent[] = [];
+    resolveMovement(state, new Map<string, Mission>([["s0h0", { kind: "attack", hero: "s0h0", target: "x5", draw: 30 }]]), events);
+    expect(heroOf(state, "s0h0").troops).toBe(10);
+    expect(state.nodes.f0.garrison).toBe(40);
+    expect(events).toEqual([]);
   });
 
   it("defend·govern과 임무 없는 영웅은 그대로다", () => {

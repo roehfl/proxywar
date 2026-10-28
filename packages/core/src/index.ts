@@ -11,6 +11,7 @@ export {
   type MatchSetup,
 } from "./setup";
 export { INFO_ITEMS, PRESET_NAMES, SettingsSetupSchema, resolveSettings, type SettingsSetup } from "./settings";
+export { allied, relationOf, setRelation } from "./relations";
 export { initState } from "./state";
 export { buildingLevels, heroLevels, ownedNodes, scoreOf, totalTroops } from "./summary";
 export { validatePlan, type CheckedPlan, type PlanIssue } from "./orders";

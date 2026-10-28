@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { validatePlan } from "../src/orders";
-import type { Build, BuildingKind, GameState, HeroStatus, Mission, Plan, Recruit } from "../src/types";
+import { setRelation } from "../src/relations";
+import type {
+  Build,
+  BuildingKind,
+  GameState,
+  HeroStatus,
+  Mission,
+  Plan,
+  Proposal,
+  Recruit,
+  ResourceAmounts,
+} from "../src/types";
 import { heroOf, makeState } from "./helpers";
 
 function reasons(state: GameState, plan: Plan): string[] {
@@ -38,7 +49,7 @@ describe("validatePlan", () => {
     };
     const checked = validatePlan(state, 0, plan);
     expect(checked.issues).toEqual([]);
-    expect(checked.plan).toEqual(plan);
+    expect(checked.plan).toEqual({ ...plan, proposals: [], responses: [] });
   });
 
   it.each<[string, Mission, string]>([
@@ -95,7 +106,7 @@ describe("validatePlan", () => {
     );
     const checked = validatePlan(state, 0, plan);
     expect(checked.issues).toEqual([]);
-    expect(checked.plan).toEqual(plan);
+    expect(checked.plan).toEqual({ ...plan, proposals: [], responses: [] });
   });
 
   it.each<[string, Mission]>([
@@ -175,6 +186,19 @@ describe("validatePlan", () => {
     ]);
   });
 
+  it("동맹 거점으로는 이동할 수 있고, 운영은 아군 거점에서만 한다", () => {
+    const state = makeState();
+    state.nodes.f0.owner = 1;
+    const move: Mission = { kind: "move", hero: "s0h0", to: "f0" };
+    expect(reasons(state, missionsOnly(move))).toEqual(["move target not own"]);
+    setRelation(state, 0, 1, "alliance");
+    expect(reasons(state, missionsOnly(move))).toEqual([]);
+    heroOf(state, "s0h1").location = "f0";
+    expect(
+      reasons(state, missionsOnly({ kind: "govern", hero: "s0h1" }, { kind: "defend", hero: "s0h2" })),
+    ).toEqual(["govern not own node"]);
+  });
+
   it("같은 영웅의 두 번째 임무를 뺀다", () => {
     const checked = validatePlan(
       makeState(),
@@ -183,6 +207,110 @@ describe("validatePlan", () => {
     );
     expect(checked.plan.missions).toEqual([{ kind: "defend", hero: "s0h0" }]);
     expect(checked.issues).toEqual([{ item: "mission", index: 1, reason: "duplicate hero" }]);
+  });
+
+  it("올바른 제안·응답은 그대로 통과한다", () => {
+    const state = makeState();
+    setRelation(state, 0, 2, "nonAggression", 30);
+    setRelation(state, 0, 3, "war");
+    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0 });
+    Object.assign(heroOf(state, "s0h4"), { status: "captured", captor: 1 });
+    state.diplomacy.pending.push({ kind: "alliance", to: 0, id: "0-5-0", from: 5 });
+    const plan: Plan = {
+      missions: [],
+      recruits: [],
+      builds: [],
+      proposals: [
+        { kind: "prisoners", to: 1, release: ["s1h0"], receive: ["s0h4"], pay: {}, ask: { gold: 10 } },
+        { kind: "alliance", to: 2 },
+        { kind: "nonAggression", to: 3, turns: 24 },
+        { kind: "trade", to: 4, give: { gold: 20 }, get: { food: 20 } },
+      ],
+      responses: [{ id: "0-5-0", accept: true }],
+    };
+    const checked = validatePlan(state, 0, plan);
+    expect(checked.issues).toEqual([]);
+    expect(checked.plan).toEqual(plan);
+  });
+
+  it.each<[string, Proposal, string]>([
+    ["자기 자신", { kind: "alliance", to: 0 }, "unknown seat"],
+    ["없는 자리", { kind: "alliance", to: 6 }, "unknown seat"],
+    ["탈락한 자리", { kind: "alliance", to: 5 }, "seat eliminated"],
+    ["불가침 턴 수", { kind: "nonAggression", to: 1, turns: 10 }, "bad turns"],
+    ["불가침 중 불가침", { kind: "nonAggression", to: 2, turns: 12 }, "already at peace"],
+    ["동맹 중 동맹", { kind: "alliance", to: 3 }, "already allied"],
+    ["음수 자원", { kind: "trade", to: 1, give: { gold: -1 }, get: {} }, "bad amount"],
+    ["모르는 자원", { kind: "trade", to: 1, give: { wood: 5 } as ResourceAmounts, get: {} }, "bad amount"],
+    ["빈 교환", { kind: "trade", to: 1, give: {}, get: { food: 0 } }, "empty trade"],
+    ["금고보다 많이", { kind: "trade", to: 1, give: { gold: 51 }, get: {} }, "cannot afford"],
+    [
+      "영웅 없는 포로 교환",
+      { kind: "prisoners", to: 1, release: [], receive: [], pay: {}, ask: { gold: 5 } },
+      "no prisoners",
+    ],
+    [
+      "같은 영웅 두 번",
+      { kind: "prisoners", to: 1, release: ["s1h0", "s1h0"], receive: [], pay: {}, ask: {} },
+      "duplicate hero",
+    ],
+    [
+      "내 포로가 아님",
+      { kind: "prisoners", to: 1, release: ["s1h1"], receive: [], pay: {}, ask: {} },
+      "not your prisoner",
+    ],
+    [
+      "상대 포로가 아님",
+      { kind: "prisoners", to: 1, release: [], receive: ["s0h0"], pay: {}, ask: {} },
+      "not their prisoner",
+    ],
+    [
+      "포로 교환 금고",
+      { kind: "prisoners", to: 1, release: ["s1h0"], receive: [], pay: { food: 60 }, ask: {} },
+      "cannot afford",
+    ],
+    ["전쟁 중 선전포고", { kind: "declareWar", to: 4 }, "already at war"],
+    ["조약 없는 파기", { kind: "breakTreaty", to: 1 }, "no treaty"],
+    ["모르는 제안", { kind: "tribute", to: 1 } as unknown as Proposal, "unknown proposal"],
+  ])("잘못된 제안을 뺀다: %s", (_, proposal, reason) => {
+    const state = makeState();
+    state.seats[5].eliminatedAt = 3;
+    setRelation(state, 0, 2, "nonAggression", 30);
+    setRelation(state, 0, 3, "alliance");
+    setRelation(state, 0, 4, "war");
+    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0 });
+    expect(reasons(state, { missions: [], recruits: [], builds: [], proposals: [proposal] })).toEqual([reason]);
+  });
+
+  it("상대 하나에 턴당 한 건만 받고, 응답은 나에게 온 대기 제안에 한 번만 한다", () => {
+    const state = makeState();
+    state.diplomacy.pending.push(
+      { kind: "alliance", to: 0, id: "0-1-0", from: 1 },
+      { kind: "alliance", to: 2, id: "0-1-1", from: 1 },
+    );
+    const checked = validatePlan(state, 0, {
+      missions: [],
+      recruits: [],
+      builds: [],
+      proposals: [
+        { kind: "nonAggression", to: 1, turns: 12 },
+        { kind: "declareWar", to: 1 },
+      ],
+      responses: [
+        { id: "0-1-0", accept: false },
+        { id: "0-1-0", accept: true },
+        { id: "0-1-1", accept: true },
+        { id: "9-9-9", accept: true },
+      ],
+    });
+    expect(checked.plan.proposals).toEqual([{ kind: "nonAggression", to: 1, turns: 12 }]);
+    expect(checked.plan.responses).toEqual([{ id: "0-1-0", accept: false }]);
+    expect(checked.issues).toEqual([
+      { item: "proposal", index: 1, reason: "one proposal per seat" },
+      { item: "response", index: 1, reason: "duplicate response" },
+      { item: "response", index: 2, reason: "unknown proposal" },
+      { item: "response", index: 3, reason: "unknown proposal" },
+    ]);
   });
 
   it("참모 메모는 그대로 넘긴다", () => {

@@ -1,9 +1,10 @@
 import type { GameEvent, GameState, Hero, Mission } from "../types";
 import { troopCap } from "./power";
 
-/** 영웅이 서 있는 거점 수비대에서 병력을 꺼낸다(수비대와 통솔 상한까지). */
+/** 영웅이 서 있는 아군 거점 수비대에서 병력을 꺼낸다(수비대와 통솔 상한까지). 동맹 거점에서는 꺼내지 않는다. */
 export function drawTroops(state: GameState, hero: Hero, requested: number, events: GameEvent[]): void {
   const node = state.nodes[hero.location];
+  if (node.owner !== hero.seat) return;
   const amount = Math.max(0, Math.min(requested, node.garrison, troopCap(hero) - hero.troops));
   if (amount === 0) return;
   node.garrison -= amount;

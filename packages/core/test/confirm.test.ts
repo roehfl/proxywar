@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { confirmPlan } from "../src/confirm";
+import { setRelation } from "../src/relations";
 import type { GameState, Mission, Plan } from "../src/types";
 import { heroOf, makeState } from "./helpers";
 
@@ -10,6 +11,29 @@ function confirm(state: GameState, ...missions: Mission[]) {
 const defend = (hero: string): Mission => ({ kind: "defend", hero });
 
 describe("confirmPlan", () => {
+  it("동맹 공격 금지: 동맹 거점 공격은 방어로, 동맹 거점 진격 조건은 조건만 빼고, 끄면 그대로 둔다", () => {
+    const state = makeState();
+    setRelation(state, 0, 1, "alliance");
+    state.nodes.x0.owner = 0;
+    state.nodes.f1.owner = 1;
+    for (const id of ["s0h0", "s0h1", "s0h2"]) heroOf(state, id).location = "x0";
+    const hit: Mission = { kind: "attack", hero: "s0h0", target: "f1", draw: 0 };
+    const advance: Mission = {
+      kind: "defend",
+      hero: "s0h1",
+      when: { trigger: { kind: "enemyNear" }, react: { kind: "advance", node: "f1" } },
+    };
+    const neutral: Mission = { kind: "attack", hero: "s0h2", target: "i0", draw: 0 };
+    expect(confirm(state, hit, advance, neutral).corrections).toEqual([]);
+    state.seats[0].settings.safeguards.noAllyAttack = true;
+    const { plan, corrections } = confirm(state, hit, advance, neutral);
+    expect(plan.missions).toEqual([defend("s0h0"), defend("s0h1"), neutral]);
+    expect(corrections).toEqual([
+      { hero: "s0h0", rule: "noAllyAttack", before: hit, after: defend("s0h0") },
+      { hero: "s0h1", rule: "noAllyAttack", before: advance, after: defend("s0h1") },
+    ]);
+  });
+
   it("상시 명령이 없고 수도에서 최소 수비를 넘겨 꺼내지 않으면 계획(메모 포함)을 그대로 둔다", () => {
     const plan: Plan = {
       missions: [{ kind: "attack", hero: "s0h0", target: "f0", draw: 30 }, { kind: "govern", hero: "s0h1" }],

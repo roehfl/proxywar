@@ -148,6 +148,67 @@ export interface MatchResult {
   scores: number[];
 }
 
+/** 두 자리 사이의 관계. 시작은 중립이고, 공격은 관계와 상관없이 할 수 있다 */
+export type RelationKind = "neutral" | "war" | "nonAggression" | "alliance";
+export type TreatyKind = "nonAggression" | "alliance";
+
+/** 중립이 아닌 쌍의 관계. a < b */
+export interface Relation {
+  a: SeatId;
+  b: SeatId;
+  kind: RelationKind;
+  /** 불가침 만료 턴(그 턴의 외교 정산에서 중립이 된다). 그 밖에는 null */
+  until: number | null;
+}
+
+/** 자원 일부(빠진 자원은 0) */
+export type ResourceAmounts = Partial<Resources>;
+
+/** 받은 쪽이 응답하는 제안 */
+export type Offer =
+  | { kind: "nonAggression"; to: SeatId; turns: number }
+  | { kind: "alliance"; to: SeatId }
+  | { kind: "trade"; to: SeatId; give: ResourceAmounts; get: ResourceAmounts }
+  /** release는 내가 잡은 to의 영웅, receive는 to가 잡은 내 영웅. pay는 내가 내고 ask는 to가 낸다 */
+  | { kind: "prisoners"; to: SeatId; release: string[]; receive: string[]; pay: ResourceAmounts; ask: ResourceAmounts };
+
+/** 응답 없이 그 턴 외교 정산에서 효력이 생기는 일방 통보 */
+export type Notice = { kind: "declareWar"; to: SeatId } | { kind: "breakTreaty"; to: SeatId };
+
+export type Proposal = Offer | Notice;
+
+/** 전달되어 다음 외교 정산까지 응답을 기다리는 제안. id는 `<전달 턴>-<자리>-<계획 안 순번>` */
+export type PendingOffer = Offer & { id: string; from: SeatId };
+
+export interface Response {
+  id: string;
+  accept: boolean;
+}
+
+/** 약속 기록 한 줄(모두에게 공개). seats는 [작은 id, 큰 id] */
+export type PromiseEntry =
+  | { turn: number; kind: "formed"; treaty: TreatyKind; seats: [SeatId, SeatId] }
+  | { turn: number; kind: "expired"; treaty: "nonAggression"; seats: [SeatId, SeatId] }
+  | {
+      turn: number;
+      kind: "broken";
+      treaty: TreatyKind;
+      seats: [SeatId, SeatId];
+      by: SeatId;
+      how: "attack" | "war" | "break";
+    }
+  | { turn: number; kind: "declared"; seats: [SeatId, SeatId]; by: SeatId };
+
+/** 수락했지만 성립하지 못한 이유 */
+export type SettleReason = "hostile" | "stale" | "gone" | "unaffordable" | "prisoner";
+
+export interface DiplomacyState {
+  /** 중립이 아닌 쌍만, (a, b) 순 */
+  relations: Relation[];
+  pending: PendingOffer[];
+  promises: PromiseEntry[];
+}
+
 export interface GameState {
   matchSeed: number;
   turn: number;
@@ -157,6 +218,7 @@ export interface GameState {
   seats: SeatState[];
   heroes: Hero[];
   majority: { seat: SeatId | null; streak: number };
+  diplomacy: DiplomacyState;
   ended: MatchResult | null;
 }
 
@@ -200,6 +262,10 @@ export interface Plan {
   missions: Mission[];
   recruits: Recruit[];
   builds: Build[];
+  /** 외교 제안·통보(상대 하나에 턴당 1건) */
+  proposals?: Proposal[];
+  /** 나에게 온 대기 제안에 대한 응답 */
+  responses?: Response[];
   /** 다음 호출의 자신에게 남기는 참모 메모 */
   memo?: string;
 }
@@ -243,4 +309,23 @@ export type GameEvent =
   | { kind: "levelUp"; seat: SeatId; hero: string; level: number; stats: HeroStats }
   | { kind: "built"; seat: SeatId; node: NodeId; building: BuildingKind; level: number }
   | { kind: "buildSkipped"; seat: SeatId; node: NodeId; building: BuildingKind; reason: "notOwned" | "unaffordable" }
-  | { kind: "conditionMet"; seat: SeatId; hero: string; trigger: Trigger["kind"]; react: Reaction["kind"] };
+  | { kind: "conditionMet"; seat: SeatId; hero: string; trigger: Trigger["kind"]; react: Reaction["kind"] }
+  | { kind: "proposalDelivered"; id: string; from: SeatId; to: SeatId; offer: Offer["kind"] }
+  | {
+      kind: "proposalSettled";
+      id: string;
+      from: SeatId;
+      to: SeatId;
+      offer: Offer["kind"];
+      result: "accepted" | "rejected" | "expired" | "voided" | "failed";
+      reason?: SettleReason;
+    }
+  | {
+      kind: "relationChanged";
+      seats: [SeatId, SeatId];
+      from: RelationKind;
+      to: RelationKind;
+      cause: "accepted" | "attack" | "declareWar" | "breakTreaty" | "expired";
+    }
+  | { kind: "promise"; entry: PromiseEntry }
+  | { kind: "heroReturned"; seat: SeatId; hero: string; from: NodeId; to: NodeId };

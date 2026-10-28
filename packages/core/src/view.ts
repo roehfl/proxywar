@@ -1,7 +1,21 @@
 import { BALANCE } from "./data/balance";
 import { bfs, compareText } from "./map";
+import { allied, relationOf } from "./relations";
 import { ownedNodes, scoreOf } from "./summary";
-import type { Board, GameMap, GameState, Hero, NodeId, NodeState, Resources, SeatId, SeatSettings } from "./types";
+import type {
+  Board,
+  GameMap,
+  GameState,
+  Hero,
+  NodeId,
+  NodeState,
+  PendingOffer,
+  PromiseEntry,
+  RelationKind,
+  Resources,
+  SeatId,
+  SeatSettings,
+} from "./types";
 
 /** 내 영웅. 숨은 성장 계수는 내 것도 숨긴다(아웃라이어는 겉으로 표시되지 않는다) */
 export type MyHero = Omit<Hero, "growth">;
@@ -15,6 +29,14 @@ export interface PublicSeat {
   nodes: number;
   score: number;
   eliminated: boolean;
+}
+
+/** 다른 자리와 나의 관계 */
+export interface SeatRelation {
+  seat: SeatId;
+  kind: RelationKind;
+  /** 불가침 만료 턴 */
+  until: number | null;
 }
 
 /** 참모가 받는 자리별 보고서 데이터. 지금 상태의 스냅숏이고, 지난 턴 사건은 1c에서 더한다 */
@@ -36,6 +58,14 @@ export interface SeatView {
   /** 지난 계획의 참모 메모 */
   memo: string;
   seats: PublicSeat[];
+  /** 다른 자리마다 나와의 관계(자리 순) */
+  relations: SeatRelation[];
+  /** 나에게 온 대기 제안(이번 계획에서 응답한다) */
+  incoming: PendingOffer[];
+  /** 내가 낸 대기 제안 */
+  outgoing: PendingOffer[];
+  /** 약속 기록(모두에게 공개) */
+  promises: PromiseEntry[];
 }
 
 /**
@@ -58,9 +88,16 @@ export function visibleNodes(state: GameState, seat: SeatId): Set<NodeId> {
   return seen;
 }
 
-/** 자리의 시야. 상태와 공유하지 않는 복사본이다. */
+/**
+ * 자리의 시야. 보이는 거점은 내 시야와 지금 동맹들의 시야(동맹의 동맹은 아님)를 합친다.
+ * 상태와 공유하지 않는 복사본이다.
+ */
 export function viewOf(state: GameState, seat: SeatId): SeatView {
   const seen = visibleNodes(state, seat);
+  for (const other of state.seats) {
+    if (other.eliminatedAt !== null || !allied(state, seat, other.id)) continue;
+    for (const node of visibleNodes(state, other.id)) seen.add(node);
+  }
   const nodes: Record<NodeId, NodeState> = {};
   for (const id of [...seen].sort(compareText)) nodes[id] = state.nodes[id];
   const myHeroes: MyHero[] = state.heroes.filter((h) => h.seat === seat).map(({ growth: _growth, ...hero }) => hero);
@@ -91,6 +128,15 @@ export function viewOf(state: GameState, seat: SeatId): SeatView {
       score: scoreOf(state, s.id),
       eliminated: s.eliminatedAt !== null,
     })),
+    relations: state.seats
+      .filter((s) => s.id !== seat)
+      .map((s) => {
+        const { kind, until } = relationOf(state, seat, s.id);
+        return { seat: s.id, kind, until };
+      }),
+    incoming: state.diplomacy.pending.filter((p) => p.to === seat),
+    outgoing: state.diplomacy.pending.filter((p) => p.from === seat),
+    promises: state.diplomacy.promises,
   };
   return JSON.parse(JSON.stringify(view));
 }

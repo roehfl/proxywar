@@ -1,9 +1,11 @@
 import { BALANCE, BUILDING_KINDS, recruitCap } from "./data/balance";
 import { neighbors } from "./map";
-import type { Build, GameState, Mission, NodeId, Plan, Recruit, SeatId } from "./types";
+import { allied, relationOf } from "./relations";
+import { covers, totalOf, validAmounts } from "./resources";
+import type { Build, GameState, Mission, NodeId, Plan, Proposal, Recruit, Response, SeatId } from "./types";
 
 export interface PlanIssue {
-  item: "mission" | "recruit" | "build";
+  item: "mission" | "recruit" | "build" | "proposal" | "response";
   index: number;
   reason: string;
 }
@@ -49,7 +51,29 @@ export function validatePlan(state: GameState, seat: SeatId, plan: Plan): Checke
       builds.push(build);
     }
   });
-  return { plan: { missions, recruits, builds, memo: plan.memo }, issues };
+  const proposals: Proposal[] = [];
+  const targeted = new Set<SeatId>();
+  (plan.proposals ?? []).forEach((proposal, index) => {
+    const reason = proposalIssue(state, seat, proposal, targeted);
+    if (reason) {
+      issues.push({ item: "proposal", index, reason });
+    } else {
+      targeted.add(proposal.to);
+      proposals.push(proposal);
+    }
+  });
+  const responses: Response[] = [];
+  const answered = new Set<string>();
+  (plan.responses ?? []).forEach((response, index) => {
+    const reason = responseIssue(state, seat, response, answered);
+    if (reason) {
+      issues.push({ item: "response", index, reason });
+    } else {
+      answered.add(response.id);
+      responses.push(response);
+    }
+  });
+  return { plan: { missions, recruits, builds, proposals, responses, memo: plan.memo }, issues };
 }
 
 function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: ReadonlySet<string>): string | null {
@@ -64,14 +88,17 @@ function missionIssue(state: GameState, seat: SeatId, mission: Mission, used: Re
 }
 
 function targetIssue(state: GameState, seat: SeatId, location: NodeId, mission: Mission): string | null {
-  // 활동 중인 영웅은 늘 아군 거점에 서 있으므로 방어·운영에는 더 볼 것이 없다
-  if (mission.kind === "defend" || mission.kind === "govern") return null;
+  // 활동 중인 영웅은 아군이나 동맹 거점에 서 있으므로 방어에는 더 볼 것이 없다. 운영은 아군 거점에서만 한다
+  if (mission.kind === "defend") return null;
+  if (mission.kind === "govern") return state.nodes[location].owner === seat ? null : "govern not own node";
   if (mission.draw !== undefined && (!Number.isInteger(mission.draw) || mission.draw < 0)) return "bad draw";
   const dest = mission.kind === "move" ? mission.to : mission.target;
   if (!Object.hasOwn(state.nodes, dest)) return "unknown node";
   if (!neighbors(state.map, location).includes(dest)) return "not adjacent";
   const owner = state.nodes[dest].owner;
-  if (mission.kind === "move" && owner !== seat) return "move target not own";
+  if (mission.kind === "move" && owner !== seat && (owner === null || !allied(state, seat, owner))) {
+    return "move target not own";
+  }
   if (mission.kind === "attack" && owner === seat) return "attack target is own";
   return null;
 }
@@ -132,4 +159,50 @@ function buildIssue(state: GameState, seat: SeatId, build: Build, builtAt: Reado
   if (builtAt.has(build.node)) return "one build per node";
   if (state.nodes[build.node].buildings[build.building] >= BALANCE.buildings.maxLevel) return "max level";
   return null;
+}
+
+/** 상대 하나에 턴당 1건. 관계는 계획 시점 것으로 본다 */
+function proposalIssue(state: GameState, seat: SeatId, p: Proposal, targeted: ReadonlySet<SeatId>): string | null {
+  if (!Number.isInteger(p.to) || p.to === seat || state.seats[p.to] === undefined) return "unknown seat";
+  if (state.seats[p.to].eliminatedAt !== null) return "seat eliminated";
+  if (targeted.has(p.to)) return "one proposal per seat";
+  const relation = relationOf(state, seat, p.to).kind;
+  const treasury = state.seats[seat].treasury;
+  switch (p.kind) {
+    case "nonAggression":
+      if (!BALANCE.diplomacy.truceTurns.includes(p.turns)) return "bad turns";
+      return relation === "neutral" || relation === "war" ? null : "already at peace";
+    case "alliance":
+      return relation === "alliance" ? "already allied" : null;
+    case "trade":
+      if (!validAmounts(p.give) || !validAmounts(p.get)) return "bad amount";
+      if (totalOf(p.give) + totalOf(p.get) === 0) return "empty trade";
+      return covers(treasury, p.give) ? null : "cannot afford";
+    case "prisoners":
+      if (!validAmounts(p.pay) || !validAmounts(p.ask)) return "bad amount";
+      if (p.release.length + p.receive.length === 0) return "no prisoners";
+      if (new Set([...p.release, ...p.receive]).size !== p.release.length + p.receive.length) return "duplicate hero";
+      if (!p.release.every((id) => isPrisoner(state, id, p.to, seat))) return "not your prisoner";
+      if (!p.receive.every((id) => isPrisoner(state, id, seat, p.to))) return "not their prisoner";
+      return covers(treasury, p.pay) ? null : "cannot afford";
+    case "declareWar":
+      return relation === "war" ? "already at war" : null;
+    case "breakTreaty":
+      return relation === "nonAggression" || relation === "alliance" ? null : "no treaty";
+    default:
+      return "unknown proposal";
+  }
+}
+
+/** owner 자리의 영웅 id가 captor에게 잡혀 있는가 */
+export function isPrisoner(state: GameState, id: string, owner: SeatId, captor: SeatId): boolean {
+  const hero = state.heroes.find((h) => h.id === id);
+  return hero !== undefined && hero.seat === owner && hero.status === "captured" && hero.captor === captor;
+}
+
+function responseIssue(state: GameState, seat: SeatId, r: Response, answered: ReadonlySet<string>): string | null {
+  const offer = state.diplomacy.pending.find((p) => p.id === r.id);
+  if (offer === undefined || offer.to !== seat) return "unknown proposal";
+  if (answered.has(r.id)) return "duplicate response";
+  return typeof r.accept === "boolean" ? null : "bad response";
 }

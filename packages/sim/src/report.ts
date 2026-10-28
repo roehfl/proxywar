@@ -1,4 +1,12 @@
-import { BALANCE, type GameEvent, type GuidelineKind, type MatchResult, type StandingOrders } from "@proxywar/core";
+import {
+  BALANCE,
+  type GameEvent,
+  type GuidelineKind,
+  type MatchResult,
+  type PromiseEntry,
+  type RelationKind,
+  type StandingOrders,
+} from "@proxywar/core";
 import type { MatchRecord } from "./runner";
 
 const REASON: Record<MatchResult["reason"], string> = {
@@ -30,6 +38,19 @@ const STAT_LABELS: Record<StatColumn, string> = {
   conditionMet: "조건 발동",
   built: "건설",
   corrected: "확정 수정",
+};
+
+const RELATION_LABELS: Record<RelationKind, string> = {
+  neutral: "중립",
+  war: "전쟁",
+  nonAggression: "불가침",
+  alliance: "동맹",
+};
+
+const BREAK_LABELS: Record<Extract<PromiseEntry, { kind: "broken" }>["how"], string> = {
+  attack: "기습",
+  war: "선전포고",
+  break: "파기",
 };
 
 const GUIDELINE_LABELS: Record<GuidelineKind, string> = {
@@ -117,12 +138,76 @@ export function renderReport(record: MatchRecord): string {
     `|---|${STAT_COLUMNS.map(() => "---").join("|")}|`,
   );
   names.forEach((n, seat) => lines.push(`| ${n} | ${STAT_COLUMNS.map((k) => counts[seat][k]).join(" | ")} |`));
+  lines.push("", ...renderDiplomacy(record, name));
 
   const issues = record.turns.flatMap((t) =>
     t.issues.flatMap((list, seat) => list.map((i) => `- T${t.turn} ${name(seat)}: ${i.item}[${i.index}] ${i.reason}`)),
   );
   lines.push("", "## 무효 명령", "", ...(issues.length > 0 ? issues : ["없음"]), "");
   return lines.join("\n");
+}
+
+/** 외교: 자리별 제안 결과(낸 쪽 기준)와 깬 약속, 약속 기록, 마지막 관계 */
+function renderDiplomacy(record: MatchRecord, name: (seat: number | null) => string): string[] {
+  const counts = record.config.seats.map(() => ({
+    delivered: 0,
+    accepted: 0,
+    rejected: 0,
+    expired: 0,
+    voided: 0,
+    failed: 0,
+    broken: 0,
+  }));
+  const promises: string[] = [];
+  const relations = new Map<string, { seats: [number, number]; kind: RelationKind }>();
+  for (const t of record.turns) {
+    for (const e of t.events) {
+      if (e.kind === "proposalDelivered") counts[e.from].delivered += 1;
+      else if (e.kind === "proposalSettled") counts[e.from][e.result] += 1;
+      else if (e.kind === "relationChanged") relations.set(e.seats.join(","), { seats: e.seats, kind: e.to });
+      else if (e.kind === "promise") {
+        if (e.entry.kind === "broken") counts[e.entry.by].broken += 1;
+        promises.push(`- T${t.turn} ${promiseText(e.entry, name)}`);
+      }
+    }
+  }
+  const pairs = [...relations.values()]
+    .filter((r) => r.kind !== "neutral")
+    .sort((p, q) => p.seats[0] - q.seats[0] || p.seats[1] - q.seats[1])
+    .map((r) => `| ${name(r.seats[0])} · ${name(r.seats[1])} | ${RELATION_LABELS[r.kind]} |`);
+  return [
+    "## 외교",
+    "",
+    "| 자리 | 제안 | 수락됨 | 거절됨 | 만료 | 무효 | 실패 | 깬 약속 |",
+    "|---|---|---|---|---|---|---|---|",
+    ...counts.map(
+      (c, seat) =>
+        `| ${name(seat)} | ${c.delivered} | ${c.accepted} | ${c.rejected} | ${c.expired} | ${c.voided} | ${c.failed} | ${c.broken} |`,
+    ),
+    "",
+    "### 약속 기록",
+    "",
+    ...(promises.length > 0 ? promises : ["없음"]),
+    "",
+    "### 마지막 관계",
+    "",
+    ...(pairs.length > 0 ? ["| 쌍 | 관계 |", "|---|---|", ...pairs] : ["모두 중립"]),
+  ];
+}
+
+function promiseText(entry: PromiseEntry, name: (seat: number | null) => string): string {
+  const [a, b] = entry.seats;
+  const pair = `${name(a)} · ${name(b)}`;
+  switch (entry.kind) {
+    case "formed":
+      return `${RELATION_LABELS[entry.treaty]} 성립: ${pair}`;
+    case "expired":
+      return `불가침 만료: ${pair}`;
+    case "broken":
+      return `${RELATION_LABELS[entry.treaty]} 깸(${BREAK_LABELS[entry.how]}): ${name(entry.by)} — ${pair}`;
+    case "declared":
+      return `선전포고: ${name(entry.by)} → ${name(entry.by === a ? b : a)}`;
+  }
 }
 
 function standingText(orders: StandingOrders): string[] {

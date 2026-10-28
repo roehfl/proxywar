@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { confirmPlan } from "../src/confirm";
 import { validatePlan } from "../src/orders";
+import { setRelation } from "../src/relations";
 import { processTurn } from "../src/rules/turn";
-import { PRESET_NAMES } from "../src/settings";
+import { PRESET_NAMES, resolveSettings } from "../src/settings";
 import { MatchSetupSchema } from "../src/setup";
 import { initState } from "../src/state";
 import { rulePlan, ruleStaff } from "../src/staff/rule-staff";
-import type { GameState, Plan } from "../src/types";
+import type { GameState, PendingOffer, Plan } from "../src/types";
 import { viewOf } from "../src/view";
 import { heroOf, makeSetup, makeState } from "./helpers";
 
@@ -244,6 +245,110 @@ describe("rulePlan의 세팅", () => {
       target: "f0",
       draw: 30,
       when: { trigger: { kind: "ratioBelow", value: 3 }, react: { kind: "defend" } },
+    });
+  });
+
+  it("동맹 신의 3 이상은 불가침·동맹 상대 거점을 공격 목표에서 빼고, 2는 동맹만 빼며, 1은 빼지 않는다", () => {
+    const state = makeState();
+    Object.assign(state.nodes.f0, { owner: 1, garrison: 0 });
+    const target = (fidelity: number, kind: "nonAggression" | "alliance", noAllyAttack = false) => {
+      const s: GameState = JSON.parse(JSON.stringify(state));
+      setRelation(s, 0, 1, kind, kind === "nonAggression" ? 50 : null);
+      s.seats[0].settings.tendency.fidelity = fidelity;
+      s.seats[0].settings.safeguards.noAllyAttack = noAllyAttack;
+      const first = planOf(s).missions[0];
+      return first.kind === "attack" ? first.target : first.kind;
+    };
+    expect(target(3, "nonAggression")).toBe("m0");
+    expect(target(2, "nonAggression")).toBe("f0");
+    expect(target(2, "alliance")).toBe("m0");
+    expect(target(1, "alliance")).toBe("f0");
+    expect(target(1, "alliance", true)).toBe("m0");
+  });
+
+  it("보복 4·5는 나와 전쟁 중인 자리의 거점을 먼저 노린다", () => {
+    const state = makeState();
+    Object.assign(state.nodes.f0, { owner: 1, garrison: 10 });
+    state.nodes.m0.garrison = 0;
+    setRelation(state, 0, 1, "war");
+    const first = (retaliation: number) => {
+      state.seats[0].settings.tendency.retaliation = retaliation;
+      return planOf(state).missions[0];
+    };
+    expect(first(3)).toMatchObject({ kind: "attack", target: "m0" });
+    expect(first(4)).toMatchObject({ kind: "attack", target: "f0" });
+  });
+
+  it("받은 제안에 모두 응답한다(불가침 수락, 원한이면 거절, 동맹은 신의 3 이상, 교환은 손해 없이 시작 금고를 지킬 때)", () => {
+    const state = makeState();
+    setRelation(state, 0, 2, "war");
+    state.seats[0].settings.tendency.retaliation = 4;
+    const offers: PendingOffer[] = [
+      { kind: "nonAggression", to: 0, turns: 12, id: "a", from: 1 },
+      { kind: "nonAggression", to: 0, turns: 12, id: "b", from: 2 },
+      { kind: "alliance", to: 0, id: "c", from: 3 },
+      { kind: "trade", to: 0, give: { gold: 20 }, get: { food: 20 }, id: "d", from: 4 },
+      { kind: "trade", to: 0, give: { food: 20 }, get: {}, id: "e", from: 4 },
+      { kind: "prisoners", to: 0, release: ["s0h4"], receive: [], pay: {}, ask: { gold: 10 }, id: "f", from: 1 },
+      { kind: "prisoners", to: 0, release: ["s0h4"], receive: [], pay: {}, ask: {}, id: "g", from: 1 },
+    ];
+    state.diplomacy.pending.push(...offers);
+    expect(planOf(state).responses).toEqual([
+      { id: "a", accept: true },
+      { id: "b", accept: false },
+      { id: "c", accept: true },
+      { id: "d", accept: false },
+      { id: "e", accept: true },
+      { id: "f", accept: false },
+      { id: "g", accept: true },
+    ]);
+  });
+
+  it("동맹 신의 3 이하는 먼저 제안하지 않는다", () => {
+    const state = makeState();
+    Object.assign(state.nodes.f0, { owner: 1, garrison: 0 });
+    expect(planOf(state).proposals).toEqual([]);
+  });
+
+  it("동맹 신의 4·5는 국경을 맞댄 상대에게 불가침을, 신의 5는 불가침 상대에게 동맹을 제안한다", () => {
+    const state = makeState();
+    state.seats[0].settings = resolveSettings("diplomatic");
+    state.nodes.f0.owner = 1;
+    state.nodes.m0.owner = 2;
+    setRelation(state, 0, 3, "nonAggression", 50);
+    expect(planOf(state).proposals).toEqual([
+      { kind: "nonAggression", to: 1, turns: 24 },
+      { kind: "alliance", to: 3 },
+    ]);
+    // 대기 중인 불가침 제안이 있는 자리는 건너뛴다
+    state.diplomacy.pending.push({ kind: "nonAggression", to: 1, turns: 24, id: "0-0-0", from: 0 });
+    const plan = planOf(state);
+    expect(plan.proposals?.[0]).toEqual({ kind: "nonAggression", to: 2, turns: 24 });
+    expect(validatePlan(state, 0, plan).issues).toEqual([]);
+  });
+
+  it("동맹 신의 4·5는 식량이 모자라면 금↔식량 교환을, 포로가 있으면 맞교환을, 맞교환할 것이 없으면 몸값을 제안한다", () => {
+    const state = makeState();
+    Object.assign(state.seats[0].settings.tendency, { fidelity: 4, aggression: 4 });
+    state.seats[0].treasury.food = 10;
+    setRelation(state, 0, 2, "nonAggression", 50);
+    Object.assign(heroOf(state, "s1h0"), { status: "captured", captor: 0 });
+    Object.assign(heroOf(state, "s3h0"), { status: "captured", captor: 0 });
+    Object.assign(heroOf(state, "s0h4"), { status: "captured", captor: 3 });
+    const plan = planOf(state);
+    expect(plan.proposals).toEqual([
+      { kind: "trade", to: 2, give: { gold: 20 }, get: { food: 20 } },
+      { kind: "prisoners", to: 3, release: ["s3h0"], receive: ["s0h4"], pay: {}, ask: {} },
+    ]);
+    expect(validatePlan(state, 0, plan).issues).toEqual([]);
+    Object.assign(heroOf(state, "s0h4"), { status: "active", captor: null });
+    expect(planOf(state).proposals?.[1]).toEqual({
+      kind: "prisoners",
+      to: 1,
+      release: ["s1h0"],
+      receive: [],
+      pay: {},
+      ask: { gold: 10 },
     });
   });
 

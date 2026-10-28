@@ -54,16 +54,16 @@ describe("runMatch", () => {
 
   it("등급·특성이 섞인 매치도 끝까지 돌고 레벨업·건설·부상·명령 불복이 일어난다", async () => {
     const record = await run(parseRunConfig(traitsRaw));
-    expect(record.version).toBe(3);
+    expect(record.version).toBe(4);
     expect(record.turns.every((t) => t.issues.every((list) => list.length === 0))).toBe(true);
     const kinds = [...new Set(record.turns.flatMap((t) => t.events.map((e) => e.kind)))];
     for (const kind of ["levelUp", "built", "heroInjured", "disobeyed"]) expect(kinds).toContain(kind);
     expect(record.turns.at(-1)?.metrics[0]).toHaveProperty("heroLevels");
   });
 
-  it("프리셋·상시 명령이 섞인 매치도 끝까지 돌고, 규칙 참모 계획은 검증·확정에서 고쳐지지 않으며 조건을 붙인다", async () => {
+  it("프리셋·상시 명령이 섞인 매치도 끝까지 돌고, 규칙 참모 계획은 검증·확정에서 고쳐지지 않으며 조건을 붙이고 외교를 한다", async () => {
     const record = await run(parseRunConfig(presetsRaw));
-    expect(record.version).toBe(3);
+    expect(record.version).toBe(4);
     expect(record.initialState.seats.map((s) => s.settings.preset)).toEqual([
       "balanced",
       "aggressive",
@@ -76,5 +76,7 @@ describe("runMatch", () => {
     expect(record.turns.every((t) => t.issues.every((list) => list.length === 0))).toBe(true);
     expect(record.turns.every((t) => t.corrections.every((list) => list.length === 0))).toBe(true);
     expect(record.turns.some((t) => t.plans[5].missions.some((m) => m.when !== undefined))).toBe(true);
+    const kinds = [...new Set(record.turns.flatMap((t) => t.events.map((e) => e.kind)))];
+    for (const kind of ["proposalDelivered", "proposalSettled", "relationChanged", "promise"]) expect(kinds).toContain(kind);
   });
 });
